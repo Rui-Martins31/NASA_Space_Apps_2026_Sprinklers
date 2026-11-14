@@ -3,3 +3,14 @@ data/*
 
 # Files
 !data/.gitkeep
+!data/README.md
+!data/MANIFEST.md
+
+# Python / notebooks
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+
+# Secrets
+.env
