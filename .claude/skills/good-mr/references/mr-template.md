@@ -17,10 +17,11 @@ Pick by size — the split tracks change surface, not taste:
 
 | Change | Form | Example |
 |---|---|---|
-| Surgical | `type(scope): imperative summary` | `fix(pairing-board): stop overnight bar overlapping the next day's break` |
-| Large | `Imperative prose (#N)` | `Migrate pairing engine to integrated-MILP model + reconfig (issues #73, #82, #84)` |
+| Surgical | `[AREA] Imperative summary` | `[FRONTEND] Stop overnight bar overlapping the next day's break` |
+| Large | `[AREA] Imperative prose (#N)` | `[BACKEND] Migrate pairing engine to integrated-MILP model + reconfig (issues #73, #82, #84)` |
 
-Scope = package or feature area, never a layer. Imperative mood: *Add, Fix, Migrate, Remove*.
+`[AREA]` is one of `[BACKEND]`, `[FRONTEND]`, `[DATASET]`, `[TOOLS]` — the same team prefix as
+commits. Imperative mood: *Add, Fix, Migrate, Remove*.
 
 ---
 

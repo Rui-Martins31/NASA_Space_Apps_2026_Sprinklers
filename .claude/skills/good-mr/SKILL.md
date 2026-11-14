@@ -40,16 +40,18 @@ example.
 
 Two forms, and **the split tracks size, not taste**:
 
-- **`type(scope): imperative summary`** for surgical changes — the common case.
-  `fix(pairing-board): stop overnight bar overlapping the next day's break`
-- **`Imperative prose (#N)`** for large ones — a migration, a rewrite, a multi-issue landing.
-  `Migrate pairing engine to integrated-MILP model + reconfig (issues #73, #82, #84)`
+Every title starts with the team's area prefix — `[BACKEND]`, `[FRONTEND]`, `[DATASET]` or
+`[TOOLS]` — exactly as commits do.
 
-A surgical fix under a grand prose title reads as overclaiming; a rewrite squeezed into
-`fix(scope):` reads as sneaking it past.
+- **`[AREA] Imperative summary`** for surgical changes — the common case.
+  `[FRONTEND] Stop overnight bar overlapping the next day's break`
+- **`[AREA] Imperative prose (#N)`** for large ones — a migration, a rewrite, a multi-issue
+  landing. `[BACKEND] Migrate pairing engine to integrated-MILP model + reconfig (issues #73, #82, #84)`
 
-Scope is a **package or feature area**, not a layer. Titles are imperative: *Add, Fix, Migrate,
-Remove, Store, Export*. See `/commit-message` — the same convention governs both, and a merge
+A surgical fix under a grand prose title reads as overclaiming; a rewrite squeezed into a
+one-line fix title reads as sneaking it past.
+
+Titles are imperative: *Add, Fix, Migrate, Remove, Store, Export*. See `/commit-message` — the same convention governs both, and a merge
 commit's first body line is the change request's title.
 
 ## Linking issues

@@ -1,6 +1,6 @@
 ---
 name: commit-message
-description: "How to write a commit message that says what the commit contains and why, and points at the issue or comment it addresses. Conventional-commit subject, a why-first body, and Closes/Refs/Part of trailers. Use whenever you're about to commit."
+description: "How to write a commit message that says what the commit contains and why, and points at the issue or comment it addresses. Team subject prefix ([BACKEND] / [FRONTEND] / [DATASET] / [TOOLS]), a why-first body, and Closes/Refs/Part of trailers. Use whenever you're about to commit."
 trigger: /commit-message
 ---
 
@@ -12,10 +12,33 @@ changed; nobody can reconstruct *why* from it six weeks later — including you.
 **Almost every commit needs a body.** Subject-only is the exception, reserved for changes that
 genuinely explain themselves.
 
+## Team rule — area prefix (mandatory)
+
+Every commit subject starts with the area it touches, in square brackets, upper case:
+
+```
+git commit -m "[BACKEND] Text"
+git commit -m "[FRONTEND] Text"
+git commit -m "[DATASET] Text"
+git commit -m "[TOOLS] Text"
+```
+
+| prefix | use |
+|---|---|
+| `[BACKEND]` | backend code — `backend/` |
+| `[FRONTEND]` | frontend code — `frontend/` |
+| `[DATASET]` | the data and the pipeline that builds it — `data/` |
+| `[TOOLS]` | tooling: scripts, Claude skills/config, CI, dev setup |
+
+This replaces the conventional-commit `type(scope):` prefix — don't write both. Use exactly these
+four spellings (no `[Backend]`, `[BE]`, `[DATA]`) so `git log --grep '^\[DATASET\]'` finds them
+all. If a change spans two areas, it is usually two commits; split it. If it fits none of the four,
+ask the team rather than inventing a new tag.
+
 ## The shape
 
 ```
-type(scope): imperative summary, lowercase, no period, ~70 chars
+[AREA] Imperative summary, no period, ~70 chars
 
 Problem or root cause first: the observed symptom, then why it happens.
 Wrapped at 72 columns.
@@ -30,45 +53,21 @@ Closes #N
 
 ## Subject line
 
-**Type.** Pick from what your history actually uses. A working set:
+**Prefix.** One of the four area tags above, then a space. The tag says *where*; the summary
+has to say *what kind of change and what it does* — "Fix", "Add", "Refactor", "Document" carry
+the information the old `type` used to.
 
-| type | use |
-|---|---|
-| `fix` | a bug — the most common type by a wide margin |
-| `feat` | new capability |
-| `docs` | documentation only |
-| `test` | tests only |
-| `chore` | housekeeping with no runtime effect |
-| `ci` | pipeline config |
-| `perf` | performance work |
-| `refactor` | behaviour-preserving restructure |
-| `ops` | deployment/infra |
-| `data` | seed files, fixtures, data assets — a real and useful type |
+**Prefix drift is a real cost.** Write `[DATASET]` in some commits and `[DATA]` in others and
+both stay readable — but together they make `git log --grep` lie to you. You search one spelling
+and silently miss everything filed under the other. Never vary it.
 
-Compound types are legitimate when a change genuinely is both: `test+docs:`.
-
-**Scope.** Name the target, and hold one spelling for it:
-
-- **underscore for code packages** — `backend`, `webapp`, `data_pipeline`, `solver_engine`
-- **hyphen for UI feature areas** — `search-panel`, `user-settings`
-- **comma-separate for multi** — `feat(backend,webapp):`
-
-Adopt whatever split your project already uses. The rule that matters is the next one.
-
-**Scope drift is a real cost.** Spell the same package with an underscore in some commits and a
-hyphen in others and both stay readable — but together they make `git log --grep` lie to you.
-You search one spelling and silently miss everything filed under the other. Pick one spelling per
-target and never vary it.
-
-**Style.** Imperative ("add", "fix", "stop", "drop", "replace"), lowercase after the colon, no
-trailing period.
+**Style.** Imperative verb, capitalised after the tag ("Add", "Fix", "Stop", "Drop",
+"Replace"), no trailing period. Identifiers keep their real casing —
+`[BACKEND] AIR_APP_ID was a typo`.
 
 **Length: target ~70–72 characters, not the textbook 50.** This is deliberate and
-counter-conventional. A 50-char cap forces vagueness; `fix(pairing-board): stop overnight bar at
-next day's SoS, not its train` is 71 characters and tells you the whole story. Take the room.
-
-Exception to lowercase: when the first word is an identifier or proper noun, keep its real
-casing — `fix(air): AIR_APP_ID was a typo`, `GET /runs lazily refreshes status`.
+counter-conventional. A 50-char cap forces vagueness; `[FRONTEND] Stop overnight bar at next
+day's SoS, not its train` tells you the whole story. Take the room.
 
 ## Body — why first
 
@@ -115,11 +114,11 @@ invisible.
 
 ## Two strong examples
 
-Both from a real history. The first is verbatim; the second has one internal path abstracted out
-and is otherwise unchanged.
+Both from a real history, with the subject rewritten to this team's prefix; the bodies are
+unchanged apart from one internal path abstracted out of the second.
 
 ```
-fix(pairing-board): stop overnight bar at next day's SoS, not its train
+[FRONTEND] Stop overnight bar at next day's SoS, not its train
 
 The overnight bar extended to the next day's first trip departure, but
 when check-in (SoS) happens before that train, the backend already
@@ -138,7 +137,7 @@ justification ("mathematically identical to...") → and then it explains **why 
 the way it is**, which is the question a reviewer would otherwise have to ask.
 
 ```
-data(seed): regenerate seed.db so double-rest days are actually populated
+[DATASET] Regenerate seed.db so double-rest days are actually populated
 
 The committed seed.db predates the double-rest reconstruction fix in
 air_output_translation.py, so both seeded scenarios still showed
@@ -163,11 +162,11 @@ numbers. The reader never has to trust it.
 ## Two weak examples
 
 ```
-fix: Fix backend Dockerfile
+[BACKEND] Fix backend Dockerfile
 ```
 
-The subject restates its own type and carries zero information. This one came from a run of ten
-near-identical commits — `fix: New fix for backend Dockerfile`, `fix: Fix to backend Dockerfile`
+The subject restates its own prefix and carries zero information. This one came from a run of ten
+near-identical commits — `New fix for backend Dockerfile`, `Fix to backend Dockerfile`
 three times over — which is what a message like this always signals: someone iterating blind
 against CI and narrating each attempt.
 
@@ -175,7 +174,7 @@ against CI and narrating each attempt.
 Add .db and some fixs
 ```
 
-No type, vague, and it bundles unrelated work so no part of it can be reverted independently.
+No area prefix, vague, and it bundles unrelated work so no part of it can be reverted independently.
 
 **The lesson behind both: a commit that can't say why is usually a commit that hasn't finished
 thinking.** If the body won't come, that's information — you probably don't yet know what you
@@ -183,12 +182,13 @@ fixed, or you've bundled two changes that want to be separate commits.
 
 ## Anti-patterns
 
+- Missing or misspelled area prefix (`[Backend]`, `[DATA]`), or a `type(scope):` prefix instead.
 - Subject-only on a change that isn't self-evident.
-- A subject that restates the type (`fix: fix the thing`).
+- A subject that restates the prefix (`[BACKEND] Fix the backend`).
 - Describing *what* the diff already shows, instead of *why*.
 - `Fixes #N`, or `Closes #61, #62` (only the first links).
 - Padding to 50 characters and losing the actual finding.
-- Varying the scope spelling for the same target.
+- Varying the prefix spelling for the same area.
 - Bundling unrelated changes so neither can be reverted alone.
 - Narrating CI attempts as a commit series instead of squashing them.
 

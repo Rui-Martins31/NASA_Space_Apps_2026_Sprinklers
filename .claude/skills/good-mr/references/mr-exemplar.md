@@ -16,7 +16,7 @@ Read it for the shape. You don't need to know the domain.
 
 ---
 
-**Title:** `fix(backend): scenarios list refreshes AIR status too, closes #89`
+**Title:** `[BACKEND] Fix scenarios list to refresh AIR status too, closes #89`
 
 > Closes #89.
 >
