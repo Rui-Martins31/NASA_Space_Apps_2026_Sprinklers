@@ -1,5 +1,7 @@
 # Folder
 data/*
+__pycache__/*
 
 # Files
 !data/.gitkeep
+.DS_Store
