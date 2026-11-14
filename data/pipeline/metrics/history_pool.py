@@ -32,6 +32,22 @@ def valid_mask(table: pd.DataFrame, max_unknown_days: int = MAX_UNKNOWN_DAYS) ->
     return (~table["partial"].astype(bool)) & ok
 
 
+def require_unique(table: pd.DataFrame, keys) -> None:
+    """ValueError se houver chaves repetidas: as tabelas l1_* tem uma linha por chave, e uma
+    repeticao seria apagada (HIS-07/08) ou contada duas vezes no pool em silencio."""
+    dup = table.duplicated(list(keys), keep=False)
+    if dup.any():
+        raise ValueError(f"{int(dup.sum())} linhas com chave repetida em {list(keys)}; "
+                         "a entrada deve ter uma linha por chave")
+
+
+def require_no_na(table: pd.DataFrame, columns) -> None:
+    """ValueError claro se alguma das colunas tiver valores em falta."""
+    bad = [c for c in columns if table[c].isna().any()]
+    if bad:
+        raise ValueError(f"valores em falta em {bad}")
+
+
 def _pool_groups(monthly: pd.DataFrame, ref_start, ref_end, max_unknown_days):
     """{(country, series, month): (anos, valores)} dos meses validos dentro da janela."""
     ok = valid_mask(monthly, max_unknown_days)
@@ -41,7 +57,7 @@ def _pool_groups(monthly: pd.DataFrame, ref_start, ref_end, max_unknown_days):
         ok &= monthly["year"] <= ref_end
     pool = monthly[ok.to_numpy()]
     return {k: (g["year"].to_numpy(), g["cell_days"].to_numpy(dtype="float64"))
-            for k, g in pool.groupby(KEYS, sort=False)}
+            for k, g in pool.groupby(KEYS, sort=False, observed=True)}
 
 
 def reference_fixed(monthly: pd.DataFrame, ref_start=None, ref_end=None,
@@ -51,6 +67,7 @@ def reference_fixed(monthly: pd.DataFrame, ref_start=None, ref_end=None,
     Colunas: country, series, month, n_ref_years, ref_mean, ref_std (ddof=1), ref_median,
     ref_p10, ref_p90. Estatisticas NA se n_ref_years < min_ref_years."""
     require_columns(monthly, REQUIRED)
+    require_unique(monthly, ["country", "series", "year", "month"])
     groups = _pool_groups(monthly, ref_start, ref_end, max_unknown_days)
     pairs = monthly[["country", "series"]].drop_duplicates().sort_values(["country", "series"])
     rows = []
@@ -81,12 +98,13 @@ def reference_loo(monthly: pd.DataFrame, ref_start=None, ref_end=None,
     ref_* e n_ref_years descrevem o pool e existem tambem para linhas invalidas;
     n_below/n_equal so existem para linhas validas. Tudo NA se n_ref_years < min_ref_years."""
     require_columns(monthly, REQUIRED)
+    require_unique(monthly, ["country", "series", "year", "month"])
     m = monthly[REQUIRED].copy()
     m["valid_month"] = valid_mask(m, max_unknown_days).to_numpy()
     groups = _pool_groups(monthly, ref_start, ref_end, max_unknown_days)
     parts = []
     need = max(min_ref_years, 1)
-    for key, g in m.groupby(KEYS, sort=False):
+    for key, g in m.groupby(KEYS, sort=False, observed=True):
         years, vals = groups.get(key, (np.empty(0, dtype="int64"), np.empty(0)))
         ev_year = g["year"].to_numpy()
         x = g["cell_days"].to_numpy(dtype="float64")

@@ -205,3 +205,32 @@ def test_matches_pure_python_oracle_on_random_world():
                 assert r["n_equal"] == sum(v == r["cell_days"] for v in others)
         else:
             assert r["ref_mean"] is None
+
+
+# ------------------------------------------------ guardas de entrada (revisao independente)
+def test_duplicate_keys_raise_instead_of_inflating_the_pool():
+    dup = monthly_df(series_rows(SIX) + [{"year": 2003, "cell_days": 99}])      # 2003 repetido
+    for fn in (reference_fixed, reference_loo):
+        with pytest.raises(ValueError, match="repetida"):
+            fn(dup)
+
+
+def test_require_no_na_names_the_columns():
+    from metrics.history_pool import require_no_na
+    df = monthly_df(series_rows(SIX))
+    df["cell_days"] = pd.array([1, pd.NA, 3, 4, 5, 6], dtype="Int64")
+    with pytest.raises(ValueError, match=r"\['cell_days'\]"):
+        require_no_na(df, ["cell_days", "year"])
+    require_no_na(df, ["year", "month"])                                      # sem falta: nao levanta
+
+
+def test_category_dtype_keys_give_same_result_and_no_future_warning():
+    import warnings
+    df = monthly_df(series_rows(SIX) + series_rows(SIX, country="Q"))
+    cat = df.astype({"country": "category", "series": "category"})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")                                        # FutureWarning vira erro
+        loo, fixed = reference_loo(cat), reference_fixed(cat)
+    pd.testing.assert_frame_equal(loo.astype({"country": "object", "series": "object"}),
+                                  reference_loo(df).astype({"country": "object", "series": "object"}), check_dtype=False)
+    assert len(fixed) == 24
