@@ -161,9 +161,6 @@ rule in section 7B and the user's handoff clarify the older wording in the
 HIS-03 table. Pool descriptions now depend only on the other valid years.
 The implementation and notebook use the shared branch workflow.
 
-The environment identifies the assistant as Codex but supplies no coauthor
-email. Commit coauthorship is recorded as `Co-Authored-By: Codex`.
-
 ## Limitations
 
 Drive mounting, private repository authentication and real-data execution
