@@ -1,5 +1,6 @@
 # Folder
 data/*
+__pycache__/
 
 # Files
 !data/.gitkeep
@@ -15,6 +16,8 @@ __pycache__/
 
 # OS
 .DS_Store
+.venv/
+
 
 # Secrets
 .env
