@@ -35,3 +35,31 @@ brightness_primary(+_band), brightness_aux(+_band), scan, track, pixel_area_km2,
 | `_log_lote1.csv`, `_params_lote1.json` | linhas por ficheiro, descartes, parâmetros (grelha, filtro, commit) | |
 
 Séries: `modis`, `viirs`, `combined` (união de células-dia; degrau artificial em 2018). SHA-256: a registar após a execução no Colab.
+
+### Lote 2 (`03_metrics_lote2.ipynb`, lê `processed/`)
+| Ficheiro | Conteúdo |
+|----------|----------|
+| `l2_obs04_night_pct.parquet` | OBS-04 % de deteções noturnas |
+| `l2_obs05_frp_median.parquet`, `l2_obs06_frp_p90.parquet`, `l2_obs07_frp_peak.parquet`, `l2_obs08_frp_availability.parquet` | OBS-05..08 FRP: mediana, percentil 90, pico, disponibilidade |
+| `l2_obs09_type_distribution.parquet` | OBS-09 distribuição por tipo de fonte térmica |
+| `l2_obs10_pixel_area_median.parquet` | OBS-10 área mediana do píxel |
+| `l2_qa01_schema_validation.parquet` | QA-01 taxa de validação do esquema |
+| `l2_add03_duplicates.parquet`, `l2_add04_zero_detection_countries.parquet` | ADD-03 duplicados e pontos (0,0); ADD-04 países sem deteções no ano |
+| `_log_lote2.csv` | log da execução |
+
+### Lote 4 (`05_metrics_lote4.ipynb`, lê as tabelas `l1_*`)
+| Ficheiro | Conteúdo | Chave |
+|----------|----------|-------|
+| `l4_his01_hist_median.parquet` | HIS-01 mediana histórica do mês (referência fixa) | país, série, mês |
+| `l4_his02_hist_band.parquet` | HIS-02 faixa histórica p10–p90 | país, série, mês |
+| `l4_his05_zscore.parquet` | HIS-05 z-score mensal (referência sem o ano avaliado) | país, série, ano, mês |
+| `l4_his06_percentile.parquet` | HIS-06 percentil histórico | país, série, ano, mês |
+| `l4_his07_ytd.parquet` | HIS-07 acumulado no ano comparável com os outros anos | país, série, ano, mês |
+| `l4_his08_yoy.parquet` | HIS-08 variação homóloga mensal | país, série, ano, mês |
+| `l4_his09_months_above.parquet` | HIS-09 meses acima da faixa histórica (p90 fixo) | país, série, ano |
+| `l4_his10_trend.parquet` | HIS-10 tendência anual de Theil-Sen (dispersão dos declives, não IC formal) | país, série |
+| `l4_add01_active_satellites.parquet` | ADD-01 satélites ativos por mês (global) | instrumento, ano, mês |
+| `l4_add02_zero_days.parquet` | ADD-02 dias sem deteções globais por mês | instrumento, ano, mês |
+| `_log_lote4.csv`, `_params_lote4.json` | linhas por tabela e parâmetros (referência, mínimos, commit) | |
+
+Estatísticas de histórico: só meses/anos **válidos** (não parciais e sem dias de cobertura desconhecida); mínimo de 5 anos de referência, abaixo disso NA.
