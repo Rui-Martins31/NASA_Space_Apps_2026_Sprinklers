@@ -1,0 +1,5 @@
+# Folder
+data/*
+
+# Files
+!data/.gitkeep
