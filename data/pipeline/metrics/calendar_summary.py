@@ -28,7 +28,7 @@ def _output(frame, columns, nullable=()):
         elif column in {"valid_month", "is_peak_month"}:
             result[column] = result[column].astype(bool)
         elif column == "date":
-            result[column] = pd.to_datetime(result[column])
+            result[column] = pd.to_datetime(result[column]).dt.as_unit("ns")
         elif column in {"country", "series", "years_included"}:
             result[column] = result[column].astype("object")
     keys = [column for column in GROUP + ["year", "month"] if column in columns]
@@ -44,6 +44,14 @@ def _input(table, columns):
     missing = sorted(set(columns) - set(table.columns))
     if missing:
         raise ValueError(f"Missing required columns: {', '.join(missing)}")
+    if "year" in columns:
+        keys = GROUP + ["year"]
+        if "month" in columns:
+            keys += ["month"]
+        if table.duplicated(keys).any():
+            raise ValueError(f"Duplicate period keys: {', '.join(keys)}")
+        if "cell_days" in table.columns and table["cell_days"].isna().any():
+            raise ValueError("cell_days contains missing values")
     return table[columns].copy().reset_index(drop=True)
 
 
@@ -128,7 +136,7 @@ def cal08_annual_mean(annual: pd.DataFrame, ref_start=None, ref_end=None,
     ).reset_index()
     result = source[GROUP].drop_duplicates().merge(summary, how="left", on=GROUP)
     result["n_years"] = result.n_years.fillna(0)
-    result["years_included"] = result.years_included.fillna("")
+    result["years_included"] = result.years_included.astype("object").fillna("")
     return _output(result, columns, nullable=["first_year", "last_year"])
 
 

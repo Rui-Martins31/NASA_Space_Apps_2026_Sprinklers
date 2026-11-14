@@ -32,8 +32,9 @@ tests/test_history_anomaly.py -q` from `data/pipeline`.
 
 After the L3 source is committed and pushed, open
 `data/pipeline/notebooks/04_metrics_lote3.ipynb` in Colab and run all cells.
-It mounts Drive, clones or fast-forwards the repository and imports modules
-from `data/pipeline`. Private repository access uses a `GITHUB_TOKEN` Colab
+It mounts Drive, clones the `metricas-pipeline` branch or switches an existing
+checkout to that branch and fast-forwards it, then imports modules from
+`data/pipeline`. Private repository access uses a `GITHUB_TOKEN` Colab
 secret at runtime. No token is stored in the notebook.
 
 The three required inputs are `metrics/l1_cal_monthly.parquet`,
@@ -81,23 +82,35 @@ notebook instance per output folder.
 - HIS-03 preserves every input month and excludes that month's evaluated
   year from its valid reference pool. Reference bounds restrict the pool,
   not the evaluated rows. Invalid target months retain their reference
-  counts but have null means and anomalies. HIS-04 returns null percentages
+  counts and means when the reference is sufficient. Only their observed-value
+  anomaly is null. HIS-04 returns null percentages
   for zero or missing reference means and missing absolute anomalies.
-- Input L1 keys are unique as specified, with integer counts, valid calendar
-  fields and boolean partial flags. No additional aggregation of malformed
-  duplicate input keys is inferred.
+- Monthly and annual L1 keys are checked for uniqueness. Duplicate period keys
+  or missing `cell_days` raise a descriptive `ValueError`, including through
+  the CAL-10 monthly skeleton and HIS-04 input. The private validation is part
+  of L3 and does not import L4 code. Input calendar fields and partial flags
+  follow the documented L1 schema.
+- Date output uses nanosecond datetime resolution on both supported pandas
+  versions. Parquet round-trip tests normalize only text representations
+  inferred differently by pandas 3, retaining strict numeric and date checks.
 
 ## Validation
 
-Before L3, the pipeline suite had 156 passing and 3 skipped tests.
-The L3 suite adds 46 passing tests. The complete suite has 202 passing and
-3 skipped tests. The skipped tests require real-data integration fixtures.
+The shared branch contains 280 passing tests from L1, L2 and L4 before L3.
+The L3 suite has 74 passing tests. The complete suite has 354 passing and
+3 skipped tests on both pandas 2.2.3 and pandas 3.1.1. The skipped tests require
+real-data integration fixtures. An initial local run with pandas 2.3.3 passed
+344 tests before the ten categorical-key checks were added.
+
+The pandas 2.2 and 3 validation environments are isolated under the system
+temporary directory. Shared dependencies and configuration were preserved.
 
 Tests include literal hand-worked examples, the six-year historical example,
 empty schemas, missing columns, nullable peak fields, zero denominators,
 invalid and partial periods, configurable thresholds and reference bounds,
 earliest ties, leap days, shuffled input, input immutability and group
-isolation. Seeded invariants check period sums, maxima and zero-sum
+isolation. Every metric also checks categorical keys with unused categories
+and treats `FutureWarning` as an error. Seeded invariants check period sums, maxima and zero-sum
 leave-one-out anomalies. Seasonal shares sum to 100 when defined, and active
 day counts remain within calendar month lengths.
 
@@ -107,7 +120,7 @@ verification cells against synthetic L1 Parquet files. They verify all ten
 round-tripped output tables, reruns, empty inputs, unchanged L1 files, the
 log and the missing-input error message.
 
-Ten deliberate temporary mutations were tested separately and restored
+During the original L3 implementation, ten deliberate temporary mutations were tested separately and restored
 after each run. Each produced failing assertions.
 
 | Metric | Deliberate incorrect behavior | Tests failing |
@@ -123,10 +136,33 @@ after each run. Each produced failing assertions.
 | HIS-03 | Include the evaluated year in reference counts | 5 |
 | HIS-04 | Scale percentages by 10 instead of 100 | 2 |
 
-Independent full-batch review using `.claude/skills/review-gate/SKILL.md`
-is complete, with no confirmed findings remaining. The reviewer independently
-confirmed 202 passing and 3 skipped tests and ran additional seeded oracle
-checks over 720 anomaly rows and six peak groups.
+The updated invalid-target and period-validation regression tests were run
+against the preserved code first, yielding 20 failures. After the fix, the
+updated tests passed on both supported pandas versions. The pandas 3 notebook
+round-trip failures were reproduced before date/text portability corrections.
+
+Independent review of this migration and specification update is complete,
+with no confirmed code or specification findings remaining. The reviewer
+independently confirmed 354 passing and 3 skipped tests on pandas 2.2.3 and
+3.1.1. A separate pure-Python oracle matched 264 evaluated anomaly rows,
+including invalid targets, bounded pools and two coverage thresholds.
+
+## Branch migration
+
+The repository started on `main`, aligned with its known remote tracking
+reference, with seven untracked L3 files, no local commits ahead and no stashes.
+All seven files were saved in local commit `903a22f` before fetching. The
+`backup-l3-local` branch preserves that state. The L3 commit was cherry-picked
+onto the existing remote `metricas-pipeline` branch without conflicts.
+All files already used `data/pipeline`, so no path moves were required.
+
+The current methodology was reread after switching. The explicit invalid-target
+rule in section 7B and the user's handoff clarify the older wording in the
+HIS-03 table. Pool descriptions now depend only on the other valid years.
+The implementation and notebook use the shared branch workflow.
+
+The environment identifies the assistant as Codex but supplies no coauthor
+email. Commit coauthorship is recorded as `Co-Authored-By: Codex`.
 
 ## Limitations
 

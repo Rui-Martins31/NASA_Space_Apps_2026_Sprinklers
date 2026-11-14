@@ -28,9 +28,9 @@ def his03_anomaly_abs(monthly: pd.DataFrame, ref_start=None, ref_end=None,
     result["valid_month"] = _valid_mask(result, max_unknown_days)
     result["n_ref_years"] = result.n_pool.fillna(0) - result.own_value.notna().astype(int)
     numerator = result.ref_total.fillna(0) - result.own_value.fillna(0)
-    enough = result.valid_month & result.n_ref_years.ge(min_ref_years)
+    enough = result.n_ref_years.ge(min_ref_years)
     result["ref_mean"] = (numerator / result.n_ref_years.replace(0, float("nan"))).where(enough)
-    result["anomaly_abs"] = result.cell_days - result.ref_mean
+    result["anomaly_abs"] = (result.cell_days - result.ref_mean).where(result.valid_month)
     return _output(result, ABS_COLUMNS)
 
 

@@ -79,7 +79,7 @@ def test_peak_month_ties_invalid_and_custom_unknown_limit():
     source = monthly(dict(year=2002, month=1, cell_days=50),
                      dict(year=2001, month=4, cell_days=50),
                      dict(year=2001, month=3, cell_days=50),
-                     dict(cell_days=999, partial=True),
+                     dict(month=5, cell_days=999, partial=True),
                      dict(year=2003, cell_days=888, n_unknown_days=1),
                      dict(country="Spain", partial=True))
     result = c.cal06_peak_month(source)
@@ -141,9 +141,26 @@ def test_monthly_reference_excludes_unknown_and_partial():
 def test_monthly_reference_preserves_groups_without_valid_periods():
     source = monthly(dict(partial=True), dict(country="Spain", n_unknown_days=1))
     result = c.cal09_monthly_mean(source)
-    assert result.groupby("country").size().to_dict() == {"Portugal": 12, "Spain": 12}
+    assert result.groupby("country", observed=True).size().to_dict() == {"Portugal": 12, "Spain": 12}
     assert result.n_years.eq(0).all()
     assert result.mean_cell_days.isna().all()
+
+
+@pytest.mark.parametrize("name,factory,columns", CASES[:6])
+@pytest.mark.parametrize("problem", ["duplicate", "missing_value"])
+def test_calendar_input_rejects_invalid_period_records(name, factory, columns, problem):
+    args = factory()
+    position = 1 if name == "cal10_active_days" else 0
+    source = args[position]
+    if problem == "duplicate":
+        args[position] = pd.concat([source, source.iloc[:1]], ignore_index=True)
+        message = "Duplicate.*country.*series.*year"
+    else:
+        source["cell_days"] = source.cell_days.astype("Int64")
+        source.loc[0, "cell_days"] = pd.NA
+        message = "cell_days.*missing"
+    with pytest.raises(ValueError, match=message):
+        getattr(c, name)(*args)
 
 
 def test_active_days_leap_day_duplicate_dates_and_zero_month():
@@ -219,7 +236,7 @@ def test_notebook_actual_cells_roundtrip_rerun_and_missing_input(tmp_path, empty
     metrics = tmp_path / "metrics"
     metrics.mkdir()
     months = pd.concat([historical_pool().assign(month=month) for month in range(1, 13)], ignore_index=True)
-    years = months.groupby(["country", "series", "year"], as_index=False).agg(
+    years = months.groupby(["country", "series", "year"], as_index=False, observed=True).agg(
         cell_days=("cell_days", "sum"), partial=("partial", "any"), n_unknown_days=("n_unknown_days", "sum")
     )
     days = months[["country", "series", "cell_days"]].rename(columns={"cell_days": "n_cells"})
@@ -236,7 +253,13 @@ def test_notebook_actual_cells_roundtrip_rerun_and_missing_input(tmp_path, empty
             exec(compile(source, "04_metrics_lote3.ipynb", "exec"), namespace)
         assert len(namespace["tables"]) == 10
         for name, expected in namespace["tables"].items():
-            assert_frame_equal(pd.read_parquet(metrics / f"{name}.parquet"), expected)
+            actual = pd.read_parquet(metrics / f"{name}.parquet")
+            # pandas 3 infers StringDtype when decoding object-string Parquet
+            # columns. Normalize those text representations only. Numeric,
+            # boolean and datetime schemas remain checked exactly.
+            text = {column: "object" for column in ["country", "series", "years_included"]
+                    if column in actual.columns}
+            assert_frame_equal(actual.astype(text), expected)
         # Rerun actual compute/export cells, replacing existing outputs safely.
         for source in sources[2:]:
             exec(source, namespace)
@@ -257,4 +280,19 @@ def test_notebook_actual_cells_roundtrip_rerun_and_missing_input(tmp_path, empty
     (metrics / "l1_cal_daily.parquet").unlink()
     with pytest.raises(FileNotFoundError, match="02_metrics_lote1.*l1_cal_daily"):
         exec(sources[2], namespace)
+
+
+@pytest.mark.parametrize("name,factory,columns", CASES)
+def test_categorical_keys_ignore_unused_categories_without_future_warnings(name, factory, columns):
+    import warnings
+
+    args = factory()
+    expected = getattr(c, name)(*args)
+    for frame in args:
+        frame["country"] = pd.Categorical(frame.country, categories=["Portugal", "Unused"])
+        frame["series"] = pd.Categorical(frame.series, categories=["modis", "viirs", "combined"])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        result = getattr(c, name)(*args)
+    assert_frame_equal(result, expected)
 

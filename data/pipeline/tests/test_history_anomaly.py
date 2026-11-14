@@ -56,13 +56,15 @@ def test_invalid_target_reference_limit_and_custom_threshold():
     result = h.his03_anomaly_abs(source)
     assert result.valid_month.tolist() == [False, True, True, True, True, True]
     assert result.n_ref_years.tolist() == [5, 4, 4, 4, 4, 4]
-    assert result[["ref_mean", "anomaly_abs"]].isna().all().all()
+    assert result.ref_mean.iloc[0] == 40.0
+    assert result.ref_mean.iloc[1:].isna().all()
+    assert result.anomaly_abs.isna().all()
     relaxed = h.his03_anomaly_abs(source, max_unknown_days=1)
     assert relaxed.anomaly_abs.tolist() == [-30, -18, -6, 6, 18, 30]
     restricted = h.his03_anomaly_abs(source, ref_start=2002, ref_end=2005, min_ref_years=3)
     assert len(restricted) == 6
     assert restricted.n_ref_years.tolist() == [4, 3, 3, 3, 3, 4]
-    assert pd.isna(restricted.ref_mean.iloc[0])
+    assert restricted.ref_mean.iloc[0] == 35.0
     assert restricted.ref_mean.iloc[1] == 40
     assert restricted.ref_mean.iloc[5] == 35
 
@@ -75,7 +77,7 @@ def test_partial_target_and_four_reference_years():
     source.loc[0, "partial"] = True
     result = h.his03_anomaly_abs(source, min_ref_years=3)
     assert not result.valid_month.iloc[0]
-    assert pd.isna(result.ref_mean.iloc[0])
+    assert result.ref_mean.iloc[0] == 35.0
     assert pd.isna(result.anomaly_abs.iloc[0])
 
 
@@ -103,3 +105,50 @@ def test_seeded_zero_sum_leave_one_out():
     result = h.his03_anomaly_abs(source)
     assert result.n_ref_years.eq(19).all()
     assert abs(result.anomaly_abs.sum()) < 1e-9
+
+
+@pytest.mark.parametrize("change", [{"partial": True}, {"n_unknown_days": 1}])
+def test_invalid_target_keeps_sufficient_pool_description(change):
+    source = pd.concat([historical_pool(), monthly(dict(year=2010, cell_days=999) | change)], ignore_index=True)
+    result = h.his03_anomaly_abs(source)
+    target = result.iloc[-1]
+    assert target.n_ref_years == 6
+    assert target.ref_mean == 35.0
+    assert not target.valid_month
+    assert pd.isna(target.anomaly_abs)
+    percent = h.his04_anomaly_pct(result).iloc[-1]
+    assert percent.ref_mean == 35.0
+    assert pd.isna(percent.anomaly_pct)
+
+
+@pytest.mark.parametrize("function", [h.his03_anomaly_abs, h.his04_anomaly_pct])
+@pytest.mark.parametrize("problem", ["duplicate", "missing_value"])
+def test_history_input_rejects_invalid_period_records(function, problem):
+    source = historical_pool()
+    if function.__name__ == "his04_anomaly_pct":
+        source = h.his03_anomaly_abs(source)
+    if problem == "duplicate":
+        source = pd.concat([source, source.iloc[:1]], ignore_index=True)
+        message = "Duplicate.*country.*series.*year.*month"
+    else:
+        source["cell_days"] = source.cell_days.astype("Int64")
+        source.loc[0, "cell_days"] = pd.NA
+        message = "cell_days.*missing"
+    with pytest.raises(ValueError, match=message):
+        function(source)
+
+
+@pytest.mark.parametrize("function", [h.his03_anomaly_abs, h.his04_anomaly_pct])
+def test_categorical_history_keys_without_future_warnings(function):
+    import warnings
+
+    source = historical_pool()
+    if function.__name__ == "his04_anomaly_pct":
+        source = h.his03_anomaly_abs(source)
+    expected = function(source)
+    source["country"] = pd.Categorical(source.country, categories=["Portugal", "Unused"])
+    source["series"] = pd.Categorical(source.series, categories=["modis", "viirs"])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        result = function(source)
+    assert_frame_equal(result, expected)
