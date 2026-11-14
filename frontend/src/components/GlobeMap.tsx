@@ -4,13 +4,18 @@ import * as maplibregl from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { useApp } from '../store'
 import { circlePolygon, zoomForRadius } from '../lib/geo'
+import { addBaseLayers, addHotspotLayers, EMBER, FLAME_MINZOOM, replayFadeMs, setBasemap, setTerrain, updateFireAnimation } from '../lib/mapLayers'
+import { FLAME_VARIANTS, flameState } from '../lib/flames'
 
 // Free dark basemap (CARTO Dark Matter, OpenStreetMap data, attribution shown on the map).
 const STYLE_URL = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
-const EMBER = '#ff6b1a'
 
 // Keep the area centred in the free space between the left panel and the results panel.
 const areaOffset = (): [number, number] => (useApp.getState().view ? [-90, 0] : [190, 0])
+// Tilt the camera when looking at an area, so the relief is visible.
+const areaPitch = () => (useApp.getState().terrain3d ? 55 : 0)
+
+const DAY = 86_400_000
 
 maplibregl.setWorkerUrl(workerUrl)
 
@@ -24,6 +29,8 @@ export default function GlobeMap() {
   const radiusKm = useApp((s) => s.radiusKm)
   const hotspots = useApp((s) => s.hotspots)
   const view = useApp((s) => s.view)
+  const basemap = useApp((s) => s.basemap)
+  const terrain3d = useApp((s) => s.terrain3d)
 
   // 1. Create the map once
   useEffect(() => {
@@ -33,6 +40,7 @@ export default function GlobeMap() {
       style: STYLE_URL,
       center: [-12, 28],
       zoom: 1.7,
+      maxPitch: 75,
       attributionControl: { compact: true },
     })
     mapRef.current = map
@@ -40,58 +48,50 @@ export default function GlobeMap() {
 
     map.on('style.load', () => {
       map.setProjection({ type: 'globe' })
+      addBaseLayers(map)
 
       map.addSource('area', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-      map.addLayer({ id: 'area-fill', type: 'fill', source: 'area', paint: { 'fill-color': EMBER, 'fill-opacity': 0.1 } })
+      map.addLayer({ id: 'area-fill', type: 'fill', source: 'area', paint: { 'fill-color': EMBER, 'fill-opacity': 0.08 } })
       map.addLayer({
         id: 'area-line',
         type: 'line',
         source: 'area',
         paint: { 'line-color': EMBER, 'line-width': 1.5, 'line-dasharray': [3, 2], 'line-opacity': 0.9 },
       })
+      addHotspotLayers(map)
 
-      map.addSource('hotspots', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-      // soft glow underneath, sharp dot on top
-      map.addLayer({
-        id: 'hotspots-glow',
-        type: 'circle',
-        source: 'hotspots',
-        paint: {
-          'circle-color': EMBER,
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 3, 10, 9],
-          'circle-blur': 1,
-          'circle-opacity': 0.35,
-        },
-      })
-      map.addLayer({
-        id: 'hotspots-dot',
-        type: 'circle',
-        source: 'hotspots',
-        paint: {
-          'circle-color': ['match', ['get', 'confidence'], 'low', '#ffb070', 'high', '#ff3d00', EMBER],
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 1.2, 10, 3.2],
-        },
-      })
       readyRef.current = true
+      const s = useApp.getState()
+      setBasemap(map, s.basemap)
+      setTerrain(map, s.terrain3d)
       syncArea()
       syncHotspots()
     })
 
     // Slow idle spin until the user touches the globe or picks a place
     let spinning = true
-    let frame = 0
     const stop = () => (spinning = false)
     map.on('mousedown', stop)
     map.on('touchstart', stop)
     map.on('wheel', stop)
-    const spin = () => {
-      if (spinning && !useApp.getState().place && map.getZoom() < 3) {
+
+    // One animation loop for the spin and the fire flicker (~30 fps for the fires)
+    let frame = 0
+    let lastFire = 0
+    const tick = (now: number) => {
+      const s = useApp.getState()
+      if (spinning && !s.place && map.getZoom() < 3) {
         const c = map.getCenter()
         map.setCenter([c.lng + 0.04, c.lat])
       }
-      frame = requestAnimationFrame(spin)
+      flameState.active = !!s.hotspots?.length && map.getZoom() >= FLAME_MINZOOM - 0.5
+      if (readyRef.current && s.hotspots?.length && now - lastFire > 33) {
+        lastFire = now
+        updateFireAnimation(map, now / 1000, s.replayTime, replayFadeMs(s.dateFrom, s.dateTo))
+      }
+      frame = requestAnimationFrame(tick)
     }
-    frame = requestAnimationFrame(spin)
+    frame = requestAnimationFrame(tick)
 
     return () => {
       cancelAnimationFrame(frame)
@@ -117,16 +117,29 @@ export default function GlobeMap() {
   function syncHotspots() {
     const map = mapRef.current
     if (!map || !readyRef.current) return
-    const pts = useApp.getState().hotspots ?? []
+    const { hotspots, dateTo } = useApp.getState()
+    const pts = hotspots ?? []
+    const recentFrom = new Date(dateTo).getTime() - 7 * DAY
     const src = map.getSource('hotspots') as maplibregl.GeoJSONSource | undefined
     src?.setData({
       type: 'FeatureCollection',
-      features: pts.map((h) => ({
-        type: 'Feature',
-        properties: { confidence: h.confidence_class, date_time: h.date_time },
-        geometry: { type: 'Point', coordinates: [h.lon, h.lat] },
-      })),
+      features: pts.map((h, i) => {
+        const ts = new Date(h.date_time.endsWith('Z') ? h.date_time : `${h.date_time}Z`).getTime()
+        return {
+          type: 'Feature',
+          properties: {
+            confidence: h.confidence_class,
+            date_time: h.date_time,
+            ts,
+            recent: ts >= recentFrom,
+            seed: ((i * 2654435761) % 1000) / 159.15, // pseudo-random 0..2π, stable per point
+            variant: i % FLAME_VARIANTS, // which flame animation to use
+          },
+          geometry: { type: 'Point', coordinates: [h.lon, h.lat] },
+        }
+      }),
     })
+    if (pts.length) updateFireAnimation(map, performance.now() / 1000, useApp.getState().replayTime, 1)
   }
 
   // 2. Fly to the chosen place and place our own pulsing marker
@@ -142,14 +155,17 @@ export default function GlobeMap() {
         '<span class="absolute inset-0 rounded-full bg-[#ff6b1a]/40 animate-ping"></span>' +
         '<span class="absolute inset-[3px] rounded-full bg-[#ff6b1a] ring-2 ring-[#07090d]"></span>'
       markerRef.current = new maplibregl.Marker({ element: el }).setLngLat([place.lon, place.lat]).addTo(map)
-      // offset so the area is not hidden behind the left panel
       map.flyTo({
         center: [place.lon, place.lat],
         zoom: zoomForRadius(useApp.getState().radiusKm),
+        pitch: areaPitch(),
+        bearing: areaPitch() ? -20 : 0,
         offset: areaOffset(),
-        duration: 2600,
+        duration: 3200,
         essential: true,
       })
+    } else {
+      map.easeTo({ pitch: 0, bearing: 0, duration: 800 })
     }
     syncArea()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -176,6 +192,19 @@ export default function GlobeMap() {
     syncHotspots()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotspots])
+
+  // 6. Satellite / dark basemap
+  useEffect(() => {
+    if (mapRef.current && readyRef.current) setBasemap(mapRef.current, basemap)
+  }, [basemap])
+
+  // 7. 3D terrain on/off (also tilts or flattens the camera)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !readyRef.current) return
+    setTerrain(map, terrain3d)
+    if (useApp.getState().place) map.easeTo({ pitch: areaPitch(), duration: 600 })
+  }, [terrain3d])
 
   // The wrapper is positioned; MapLibre's own CSS would override position on the map div itself.
   return (

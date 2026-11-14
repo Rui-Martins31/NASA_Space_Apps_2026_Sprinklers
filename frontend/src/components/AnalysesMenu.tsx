@@ -10,6 +10,7 @@ import {
   BookOpenText,
   DotsNine,
   CircleNotch,
+  PlayCircle,
 } from '@phosphor-icons/react'
 import type { Icon } from '@phosphor-icons/react'
 import clsx from 'clsx'
@@ -49,7 +50,7 @@ function Tile({ item, disabled }: { item: Item; disabled: boolean }) {
 }
 
 export default function AnalysesMenu() {
-  const { place, status, view, hotspots, hotspotsLoading, calendar, radiusKm, dateFrom, dateTo } = useApp()
+  const { place, status, view, hotspots, hotspotsLoading, calendar, radiusKm, dateFrom, dateTo, replayTime } = useApp()
   const { openView, analyze, loadHotspots } = useApp.getState()
 
   // Opening a chart before analyzing runs the analysis first.
@@ -81,6 +82,15 @@ export default function AnalysesMenu() {
     }
   }
 
+  // Replay: hotspots appear on the map day by day over the chosen period.
+  async function startReplay() {
+    if (!useApp.getState().hotspots) await loadHotspots()
+    const pts = useApp.getState().hotspots
+    if (!pts?.length) return
+    useApp.getState().openView(null) // give the map the whole screen
+    useApp.getState().setReplay(new Date(dateFrom).getTime(), true)
+  }
+
   function exportCalendar() {
     if (!calendar || !place) return
     downloadCsv(`calendar_${hotspotsFilename(place.label, dateFrom, dateTo).slice(9)}`, calendar)
@@ -96,15 +106,22 @@ export default function AnalysesMenu() {
       label: hotspots ? 'Hide hotspots' : 'Hotspots on map',
       icon: Fire,
       tint: 'bg-ember-500/15 text-ember-500',
-      run: () => (hotspots ? useApp.setState({ hotspots: null }) : loadHotspots()),
-      active: !!hotspots,
+      run: () => (hotspots ? useApp.setState({ hotspots: null, replayTime: null, replayPlaying: false }) : loadHotspots()),
+      active: !!hotspots && replayTime === null,
       busy: hotspotsLoading,
     },
-    { label: 'About the method', icon: BookOpenText, tint: 'bg-fg/10 text-fg', run: show('about'), active: view === 'about' },
+    {
+      label: 'Replay fires',
+      icon: PlayCircle,
+      tint: 'bg-ember-500/15 text-ember-300',
+      run: startReplay,
+      active: replayTime !== null,
+    },
   ]
   const exports: Item[] = [
     { label: 'Hotspots CSV', icon: FileCsv, tint: 'bg-[#4fd1a5]/15 text-[#4fd1a5]', run: exportHotspots },
     { label: 'Calendar CSV', icon: Table, tint: 'bg-[#4fd1a5]/15 text-[#4fd1a5]', run: exportCalendar },
+    { label: 'About the method', icon: BookOpenText, tint: 'bg-fg/10 text-fg', run: show('about'), active: view === 'about' },
   ]
 
   return (
@@ -127,14 +144,18 @@ export default function AnalysesMenu() {
               </div>
               <div className="mt-1 grid grid-cols-3 gap-1">
                 {analyses.map((it) => (
-                  <Tile key={it.label} item={it} disabled={!place && it.label !== 'About the method'} />
+                  <Tile key={it.label} item={it} disabled={!place} />
                 ))}
               </div>
             </div>
-            <div className="px-3 pt-3 pb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted">Export</div>
+            <div className="px-3 pt-3 pb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted">Export &amp; info</div>
             <div className="grid grid-cols-3 gap-1">
               {exports.map((it) => (
-                <Tile key={it.label} item={it} disabled={!place || (it.label === 'Calendar CSV' && !calendar)} />
+                <Tile
+                  key={it.label}
+                  item={it}
+                  disabled={it.label !== 'About the method' && (!place || (it.label === 'Calendar CSV' && !calendar))}
+                />
               ))}
             </div>
           </Popover.Popup>

@@ -4,6 +4,8 @@ import SearchBar from './components/SearchBar'
 import AreaPanel from './components/AreaPanel'
 import AnalysesMenu from './components/AnalysesMenu'
 import ResultsDrawer from './components/ResultsDrawer'
+import ReplayBar from './components/ReplayBar'
+import MapModeToggle from './components/MapModeToggle'
 import { usingMock } from './api/client'
 import { useApp } from './store'
 
@@ -43,8 +45,10 @@ export default function App() {
         </div>
       )}
 
+      <MapModeToggle />
+      <ReplayBar />
       <ResultsDrawer />
-      <Toaster theme="dark" position="bottom-center" toastOptions={{ style: { fontFamily: 'IBM Plex Sans', background: '#0d1117' } }} />
+      <Toaster theme="dark" position="top-center" toastOptions={{ style: { fontFamily: 'IBM Plex Sans', background: '#0d1117' } }} />
     </main>
   )
 }
