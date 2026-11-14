@@ -5,7 +5,7 @@ Copy the skeleton, replace every `<placeholder>`, delete what doesn't apply.
 ## Skeleton
 
 ```
-<type>(<scope>): <imperative summary, lowercase, no period, ~70 chars>
+[<AREA>] <Imperative summary, no period, ~70 chars>
 
 <The problem or root cause. Lead with the observed symptom — ideally the
 live one someone actually reported. Then why it happens. Wrap at 72.>
@@ -24,34 +24,30 @@ Closes #<N>
 ## Minimal form (trivial change only)
 
 ```
-<type>(<scope>): <imperative summary>
+[<AREA>] <Imperative summary>
 ```
 
 Use this only when the change genuinely explains itself. If you're unsure, it doesn't.
 
-## Types
+## Area prefixes (team rule — mandatory)
 
-| type | use |
+```
+git commit -m "[BACKEND] Text"
+git commit -m "[FRONTEND] Text"
+git commit -m "[DATASET] Text"
+git commit -m "[TOOLS] Text"
+```
+
+| prefix | use |
 |---|---|
-| `fix` | a bug |
-| `feat` | new capability |
-| `docs` | documentation only |
-| `test` | tests only |
-| `chore` | housekeeping, no runtime effect |
-| `ci` | pipeline config |
-| `perf` | performance work |
-| `refactor` | behaviour-preserving restructure |
-| `ops` | deployment / infra |
-| `data` | seed files, fixtures, data assets |
-| `test+docs` | compound — legitimate when it genuinely is both |
+| `[BACKEND]` | backend code — `backend/` |
+| `[FRONTEND]` | frontend code — `frontend/` |
+| `[DATASET]` | the data and the pipeline that builds it — `data/` |
+| `[TOOLS]` | tooling: scripts, Claude skills/config, CI, dev setup |
 
-## Scopes
-
-- **underscore** for code packages — `backend`, `webapp`, `data_pipeline`, `solver_engine`
-- **hyphen** for UI feature areas — `search-panel`, `user-settings`
-- **comma** for multi — `feat(backend,webapp):`
-- **one spelling per target, always.** Never `data_pipeline` in one commit and
-  `data-pipeline` in the next — `git log --grep` will quietly miss half your history.
+- Exactly these four spellings, upper case, in square brackets. Never `[Backend]`, `[DATA]`.
+- No `type(scope):` on top. The verb ("Fix", "Add", "Refactor") carries the kind of change.
+- Spans two areas? Usually two commits. Fits none? Ask the team before inventing a tag.
 
 ## Issue trailers
 
@@ -78,10 +74,10 @@ Fixes #61                      <- not the convention here; use Closes
 
 ## Rules checklist
 
-- [ ] Subject is imperative, lowercase after the colon (unless it starts with an identifier or
-      proper noun), no trailing period
+- [ ] Subject starts with `[BACKEND]`, `[FRONTEND]`, `[DATASET]` or `[TOOLS]`
+- [ ] Subject is imperative, capitalised after the tag, no trailing period
 - [ ] Subject is ~70–72 chars — **not** padded down to 50
-- [ ] Subject says the finding, not the type (`fix: fix the thing` is not a message)
+- [ ] Subject says the finding, not the area (`[BACKEND] Fix the backend` is not a message)
 - [ ] Body exists — it almost always should — and leads with **why**, not what
 - [ ] Body names the alternative you rejected — "instead of ..."
 - [ ] Bullets use `- ` only; wrapped at 72
