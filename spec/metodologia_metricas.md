@@ -157,11 +157,11 @@ Tabela gerada a partir do CSV. A coluna **Adequação** é uma triagem inicial (
 | HIS-09 | Meses acima da faixa histórica | Desejável | L4 | Implementada | Média | Fixar a referência antes de comparar. |
 | HIS-10 | Tendência dos totais anuais | Opcional | L4 | Implementada | Baixa | Theil-Sen só com anos completos e comparáveis; atenção ao degrau MODIS 2002 (Aqua) e 2018. |
 | ESP-01 | Densidade de atividade | Opcional | — | Bloqueada (falta área/máscara do país) | Baixa | Precisa da área de cada país; adiada (não se inventam áreas). |
-| ESP-02 | Células distintas com deteções | Desejável | L5 | A implementar | Média | Ver 7F. |
-| ESP-03 | Recorrência por célula | Desejável | L5 | A implementar | Média | Ver 7F. |
+| ESP-02 | Células distintas com deteções | Desejável | L5 | Implementada | Média | Ver 7F. |
+| ESP-03 | Recorrência por célula | Desejável | L5 | Implementada | Média | Ver 7F. |
 | ESP-04 | Proporção da grelha com deteções | Opcional | — | Bloqueada (falta área/máscara do país) | Baixa | Precisa de grelha/máscara recortada ao país; adiada. |
-| ESP-06 | Recorrência interanual por célula | Opcional | L5 | A implementar | Baixa | Só anos válidos; ver 7F. |
-| QA-05 | Dias com cobertura confirmada | MVP | L5 | A implementar | Alta | Só um proxy global (dia com algum registo no sensor), não cobertura real por região; ver 7F. |
+| ESP-06 | Recorrência interanual por célula | Opcional | L5 | Implementada | Baixa | Só anos válidos; ver 7F. |
+| QA-05 | Dias com cobertura confirmada | MVP | L5 | Implementada | Alta | Só um proxy global (dia com algum registo no sensor), não cobertura real por região; ver 7F. |
 | HAR-01 | Células-dia coincidentes entre MODIS e VIIRS | Validação | L6 | A implementar | Alta | Só no período comum 2018+. |
 | HAR-02 | Índice de sobreposição de Jaccard | Validação | L6 | A implementar | Alta | Só no período comum 2018+. |
 | HAR-03 | Meses comparáveis usados na validação | Validação | L6 | A implementar | Alta | Só no período comum 2018+. |
@@ -193,8 +193,8 @@ Tabela gerada a partir do CSV. A coluna **Adequação** é uma triagem inicial (
 | ADD-02 | Dias sem deteções globais por sensor | (nova) | L4 | Implementada | Alta | Dias sem deteções globais por sensor: proxy de falhas de cobertura. |
 | ADD-03 | Duplicados exatos e pontos (0,0) | (nova) | L2 | Implementada | Média | Adicional proposta: duplicados exatos e pontos (0,0). |
 | ADD-04 | Países sem deteções num ano | (nova) | L2 | Implementada | Média | Adicional proposta: países sem deteções num ano. |
-| ADD-05 | Sensibilidade ao filtro de tipo | (nova) | L5 | A implementar | Média | Sensibilidade ao filtro de `type`; ver 7F. |
-| ADD-06 | Efeito do degrau MODIS->união em 2018 | (nova) | L5 | A implementar | Alta | Ver 7F. |
+| ADD-05 | Sensibilidade ao filtro de tipo | (nova) | L5 | Implementada | Média | Sensibilidade ao filtro de `type`; ver 7F. |
+| ADD-06 | Efeito do degrau MODIS->união em 2018 | (nova) | L5 | Implementada | Alta | Ver 7F. |
 
 ## 6. Lotes e regras anti-conflito
 
@@ -220,7 +220,7 @@ Tabela gerada a partir do CSV. A coluna **Adequação** é uma triagem inicial (
 | | L1 (Arthur) | L2 (colega) | L3 (colega) | L4 (Arthur) | L5 (Arthur) | L6 (colega) |
 |---|---|---|---|---|---|---|
 | Módulos | `data/pipeline/metrics/common.py`, `counts.py`, `calendar_metrics.py` | `data/pipeline/metrics/detections.py`, `ingestion_qa.py` | `data/pipeline/metrics/calendar_summary.py`, `history_anomaly.py` | `data/pipeline/metrics/history_pool.py`, `history_distribution.py`, `history_cumulative.py`, `coverage_meta.py` | `data/pipeline/metrics/cell_recurrence.py` (`build_cell_year`, ESP-02, ESP-03, ESP-06), `filter_sensitivity.py` (ADD-05), `coverage_steps.py` (QA-05, ADD-06) | `data/pipeline/metrics/harmonization_overlap.py` (HAR-01, HAR-02), `harmonization_factor.py` (HAR-03…HAR-07) |
-| Testes | `data/pipeline/tests/test_common.py`, `test_counts.py`, `test_calendar_metrics.py`, `test_integration_sample_lote1.py`, `helpers_lote1.py` | `data/pipeline/tests/test_detections.py`, `test_ingestion_qa.py` | `data/pipeline/tests/test_calendar_summary.py`, `test_history_anomaly.py` (e `helpers_lote3.py` se precisar) | `data/pipeline/tests/test_history_pool.py`, `test_history_distribution.py`, `test_history_cumulative.py`, `test_coverage_meta.py`, `helpers_lote4.py`, `helpers_lote4_b.py` | `data/pipeline/tests/test_cell_recurrence.py`, `test_filter_sensitivity.py`, `test_coverage_steps.py`, `helpers_lote5.py` | `data/pipeline/tests/test_harmonization_overlap.py`, `test_harmonization_factor.py`, `helpers_lote6.py` |
+| Testes | `data/pipeline/tests/test_common.py`, `test_counts.py`, `test_calendar_metrics.py`, `test_integration_sample_lote1.py`, `helpers_lote1.py` | `data/pipeline/tests/test_detections.py`, `test_ingestion_qa.py` | `data/pipeline/tests/test_calendar_summary.py`, `test_history_anomaly.py` (e `helpers_lote3.py` se precisar) | `data/pipeline/tests/test_history_pool.py`, `test_history_distribution.py`, `test_history_cumulative.py`, `test_coverage_meta.py`, `helpers_lote4.py`, `helpers_lote4_b.py` | `data/pipeline/tests/test_cell_recurrence.py`, `test_filter_sensitivity.py`, `test_coverage_steps.py`, `test_notebook_lote5.py`, `helpers_lote5.py` | `data/pipeline/tests/test_harmonization_overlap.py`, `test_harmonization_factor.py`, `helpers_lote6.py` |
 | Notebook | `data/pipeline/notebooks/02_metrics_lote1.ipynb` | `data/pipeline/notebooks/03_metrics_lote2.ipynb` | `data/pipeline/notebooks/04_metrics_lote3.ipynb` | `data/pipeline/notebooks/05_metrics_lote4.ipynb` | `data/pipeline/notebooks/06_metrics_lote5.ipynb` | `data/pipeline/notebooks/07_metrics_lote6.ipynb` |
 | Relatório | `spec/lotes/lote_1.md` | `spec/lotes/lote_2.md` | `spec/lotes/lote_3.md` | `spec/lotes/lote_4.md` | `spec/lotes/lote_5.md` | `spec/lotes/lote_6.md` |
 | Saídas em `metrics/` | `l1_*.parquet`, `_log_lote1.csv` | `l2_*.parquet`, `_log_lote2.csv` | `l3_*.parquet`, `_log_lote3.csv` | `l4_*.parquet`, `_log_lote4.csv` | `l5_*.parquet`, `_log_lote5.csv` | `l6_*.parquet`, `_log_lote6.csv` |

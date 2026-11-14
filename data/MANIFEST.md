@@ -60,6 +60,12 @@ Séries: `modis`, `viirs`, `combined` (união de células-dia; degrau artificial
 | `l4_his10_trend.parquet` | HIS-10 tendência anual de Theil-Sen (dispersão dos declives, não IC formal) | país, série |
 | `l4_add01_active_satellites.parquet` | ADD-01 satélites ativos por mês (global) | instrumento, ano, mês |
 | `l4_add02_zero_days.parquet` | ADD-02 dias sem deteções globais por mês | instrumento, ano, mês |
+| `l5_esp02_active_cells.parquet` | ESP-02 células distintas com deteções | país, série, ano |
+| `l5_esp03_recurrence.parquet` | ESP-03 recorrência por célula (dias com deteção; baldes 1 / 2–5 / 6–15 / 16+) | país, série, ano |
+| `l5_esp06_interannual.parquet` | ESP-06 recorrência interanual por célula (só anos válidos) | país, série |
+| `l5_qa05_confirmed_days.parquet` | QA-05 dias com registos globais (proxy de cobertura, não cobertura real) | instrumento, ano, mês |
+| `l5_add05_type_sensitivity.parquet` | ADD-05 sensibilidade ao filtro de `type` (3 variantes) | país, ano, instrumento, variante |
+| `l5_add06_union_step.parquet` | ADD-06 efeito do degrau MODIS→união (inclui linha `ALL`) | país, ano |
 | `_log_lote4.csv`, `_params_lote4.json` | linhas por tabela e parâmetros (referência, mínimos, commit) | |
 
 Estatísticas de histórico: só meses/anos **válidos** (não parciais e sem dias de cobertura desconhecida); mínimo de 5 anos de referência, abaixo disso NA.
