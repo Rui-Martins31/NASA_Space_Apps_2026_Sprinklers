@@ -217,8 +217,8 @@ Tabela gerada a partir do CSV. A coluna **Adequação** é uma triagem inicial (
 
 | | L1 (Arthur) | L2 (colega) | L3 (colega) | L4 (Arthur) |
 |---|---|---|---|---|
-| Módulos | `data/pipeline/metrics/common.py`, `counts.py`, `calendar_metrics.py` | `data/pipeline/metrics/detections.py`, `ingestion_qa.py` | `data/pipeline/metrics/calendar_summary.py`, `history_anomaly.py` | `data/pipeline/metrics/history_distribution.py`, `history_cumulative.py`, `coverage_meta.py` |
-| Testes | `data/pipeline/tests/test_common.py`, `test_counts.py`, `test_calendar_metrics.py`, `test_integration_sample_lote1.py`, `helpers_lote1.py` | `data/pipeline/tests/test_detections.py`, `test_ingestion_qa.py` | `data/pipeline/tests/test_calendar_summary.py`, `test_history_anomaly.py` (e `helpers_lote3.py` se precisar) | `data/pipeline/tests/test_history_distribution.py`, `test_history_cumulative.py`, `test_coverage_meta.py` (e `helpers_lote4.py` se precisar) |
+| Módulos | `data/pipeline/metrics/common.py`, `counts.py`, `calendar_metrics.py` | `data/pipeline/metrics/detections.py`, `ingestion_qa.py` | `data/pipeline/metrics/calendar_summary.py`, `history_anomaly.py` | `data/pipeline/metrics/history_pool.py`, `history_distribution.py`, `history_cumulative.py`, `coverage_meta.py` |
+| Testes | `data/pipeline/tests/test_common.py`, `test_counts.py`, `test_calendar_metrics.py`, `test_integration_sample_lote1.py`, `helpers_lote1.py` | `data/pipeline/tests/test_detections.py`, `test_ingestion_qa.py` | `data/pipeline/tests/test_calendar_summary.py`, `test_history_anomaly.py` (e `helpers_lote3.py` se precisar) | `data/pipeline/tests/test_history_pool.py`, `test_history_distribution.py`, `test_history_cumulative.py`, `test_coverage_meta.py`, `helpers_lote4.py` |
 | Notebook | `data/pipeline/notebooks/02_metrics_lote1.ipynb` | `data/pipeline/notebooks/03_metrics_lote2.ipynb` | `data/pipeline/notebooks/04_metrics_lote3.ipynb` | `data/pipeline/notebooks/05_metrics_lote4.ipynb` |
 | Relatório | `spec/lotes/lote_1.md` | `spec/lotes/lote_2.md` | `spec/lotes/lote_3.md` | `spec/lotes/lote_4.md` |
 | Saídas em `metrics/` | `l1_*.parquet`, `_log_lote1.csv` | `l2_*.parquet`, `_log_lote2.csv` | `l3_*.parquet`, `_log_lote3.csv` | `l4_*.parquet`, `_log_lote4.csv` |
@@ -374,7 +374,7 @@ Contrato das funções, ficheiros e testes: como em 7.1 e nas secções 6 e 9. L
 ## 7D. Especificação do Lote 4 (Arthur + Claude)
 
 Métricas: **HIS-01, HIS-02, HIS-05, HIS-06, HIS-07, HIS-08, HIS-09, HIS-10, ADD-01, ADD-02** (10).
-**Ficheiros reservados do L4:** `data/pipeline/metrics/history_distribution.py` (HIS-01, HIS-02, HIS-05, HIS-06, HIS-09), `history_cumulative.py` (HIS-07, HIS-08, HIS-10), `coverage_meta.py` (ADD-01, ADD-02); testes `test_history_distribution.py`, `test_history_cumulative.py`, `test_coverage_meta.py`; notebook `05_metrics_lote4.ipynb`; relatório `spec/lotes/lote_4.md`; saídas `l4_*.parquet` e `_log_lote4.csv`.
+**Ficheiros reservados do L4:** `data/pipeline/metrics/history_pool.py` (pool de referência comum: `valid_mask`, `reference_fixed`, `reference_loo`), `data/pipeline/metrics/history_distribution.py` (HIS-01, HIS-02, HIS-05, HIS-06, HIS-09), `history_cumulative.py` (HIS-07, HIS-08, HIS-10), `coverage_meta.py` (ADD-01, ADD-02); testes `test_history_distribution.py`, `test_history_cumulative.py`, `test_coverage_meta.py`; notebook `05_metrics_lote4.ipynb`; relatório `spec/lotes/lote_4.md`; saídas `l4_*.parquet` e `_log_lote4.csv`.
 
 | Métrica | Tabela | Entrada | Regra e colunas |
 |---|---|---|---|
