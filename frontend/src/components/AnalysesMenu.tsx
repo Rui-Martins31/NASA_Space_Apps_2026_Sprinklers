@@ -16,7 +16,7 @@ import clsx from 'clsx'
 import { toast } from 'sonner'
 import { useApp } from '../store'
 import { downloadCsv, hotspotsFilename } from '../lib/stats'
-import { fetchFeature } from '../api/client'
+import { fetchFeature, MAX_HOTSPOTS } from '../api/client'
 import type { View } from '../types'
 
 interface Item {
@@ -65,13 +65,17 @@ export default function AnalysesMenu() {
       const res = await fetchFeature('hotspots', {
         lat: place.lat,
         lon: place.lon,
-        radius_km: radiusKm,
-        date_from: dateFrom,
-        date_to: dateTo,
-        max_points: 1_000_000,
+        radiusKm,
+        dateFrom,
+        dateTo,
+        maxPoints: MAX_HOTSPOTS,
       })
-      downloadCsv(hotspotsFilename(place.label, dateFrom, dateTo), res.hotspots ?? [])
-      toast.success(`CSV with ${(res.hotspots ?? []).length.toLocaleString('en')} hotspots downloaded`, { id })
+      const rows = res.hotspots ?? []
+      downloadCsv(hotspotsFilename(place.label, dateFrom, dateTo), rows)
+      toast.success(`CSV with ${rows.length.toLocaleString('en')} hotspots downloaded`, {
+        id,
+        description: rows.length >= MAX_HOTSPOTS ? `Capped at the backend limit of ${MAX_HOTSPOTS.toLocaleString('en')}.` : undefined,
+      })
     } catch (e) {
       toast.error('Export failed', { id, description: (e as Error).message })
     }

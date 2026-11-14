@@ -68,7 +68,7 @@ export default function GlobeMap() {
         type: 'circle',
         source: 'hotspots',
         paint: {
-          'circle-color': ['interpolate', ['linear'], ['get', 'frp'], 0, '#ffb070', 60, EMBER, 180, '#ff3d00'],
+          'circle-color': ['match', ['get', 'confidence'], 'low', '#ffb070', 'high', '#ff3d00', EMBER],
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 1.2, 10, 3.2],
         },
       })
@@ -123,7 +123,7 @@ export default function GlobeMap() {
       type: 'FeatureCollection',
       features: pts.map((h) => ({
         type: 'Feature',
-        properties: { frp: h.frp, date: h.date },
+        properties: { confidence: h.confidence_class, date_time: h.date_time },
         geometry: { type: 'Point', coordinates: [h.lon, h.lat] },
       })),
     })

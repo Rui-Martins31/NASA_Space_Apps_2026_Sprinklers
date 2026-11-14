@@ -1,16 +1,30 @@
-// Shapes agreed with the backend (API contract v0.3).
+// Shapes agreed with the backend (spec/api/frontend-backend.md).
 // If the backend changes a field, change it here first: TypeScript will
 // then point at every place in the UI that needs updating.
 
 export type Feature = 'all' | 'calendar' | 'anomalies' | 'hotspots'
 
+export type ConfidenceClass = 'low' | 'nominal' | 'high'
+
+/** Request body, exactly as the backend expects it. */
 export interface ApiRequest {
+  feature: Feature // must match the endpoint
   lat: number
   lon: number
-  radius_km: number
-  date_from: string // YYYY-MM-DD
-  date_to: string // YYYY-MM-DD
-  max_points?: number // only used by /hotspots
+  radius: number // km
+  date_time_from: string // ISO-8601, read as UTC, e.g. 2020-01-01T00:00:00
+  date_time_to: string
+  max_points?: number // only used by /hotspots (backend limit: 50 000)
+}
+
+/** What the UI asks for; the client turns it into an ApiRequest. */
+export interface AreaQuery {
+  lat: number
+  lon: number
+  radiusKm: number
+  dateFrom: string // YYYY-MM-DD, inclusive
+  dateTo: string // YYYY-MM-DD, inclusive
+  maxPoints?: number
 }
 
 export interface CalendarEntry {
@@ -23,17 +37,15 @@ export interface AnomalyEntry {
   year: number
   month: number
   count: number
-  mean: number
-  anomaly: number // count - mean
+  mean: number // average of this month over the years in range
+  anomaly: 'above' | 'normal' // 'above' when count > mean
 }
 
 export interface Hotspot {
   lat: number
   lon: number
-  date: string
-  satellite: string
-  confidence: string
-  frp: number
+  date_time: string // ISO-8601, UTC
+  confidence_class: ConfidenceClass
 }
 
 export interface ApiResponse {

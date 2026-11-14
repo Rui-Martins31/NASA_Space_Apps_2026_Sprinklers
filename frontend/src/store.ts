@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { toast } from 'sonner'
 import { fetchFeature } from './api/client'
-import type { AnomalyEntry, CalendarEntry, Hotspot, Place, View } from './types'
+import type { AnomalyEntry, AreaQuery, CalendarEntry, Hotspot, Place, View } from './types'
 
 const today = new Date().toISOString().slice(0, 10)
 
@@ -32,13 +32,13 @@ interface AppState {
 export const DATA_START = '2001-01-01'
 export const TODAY = today
 
-function request(s: AppState, extra: object = {}) {
+function request(s: AppState, extra: Partial<AreaQuery> = {}): AreaQuery {
   return {
     lat: s.place!.lat,
     lon: s.place!.lon,
-    radius_km: s.radiusKm,
-    date_from: s.dateFrom,
-    date_to: s.dateTo,
+    radiusKm: s.radiusKm,
+    dateFrom: s.dateFrom,
+    dateTo: s.dateTo,
     ...extra,
   }
 }
@@ -80,7 +80,7 @@ export const useApp = create<AppState>((set, get) => ({
     if (!s.place) return
     set({ hotspotsLoading: true })
     try {
-      const res = await fetchFeature('hotspots', request(s, { max_points: 5000 }))
+      const res = await fetchFeature('hotspots', request(s, { maxPoints: 5000 }))
       const hotspots = res.hotspots ?? []
       set({ hotspots, hotspotsLoading: false })
       toast.success(`${hotspots.length.toLocaleString('en')} hotspots on the map`, {
