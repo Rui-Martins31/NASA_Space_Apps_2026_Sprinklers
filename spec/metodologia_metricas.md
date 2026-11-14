@@ -7,7 +7,7 @@ Foi escrito para que duas pessoas, cada uma com o seu Claude, trabalhem **em par
 - as regras de cálculo, a qualidade dos testes e a forma de raciocinar são as mesmas nos dois lados;
 - onde o CSV deixa uma decisão em aberto, ela está **fixada aqui**. Não reinterprete: se discordar, implemente como está e registe a objeção no relatório do lote.
 
-> **Para o Claude que lê isto:** leia este documento inteiro uma vez, depois só a linha do CSV de cada métrica que vai implementar (`grep "^OBS-04," spec/metricas_modis_viirs.csv`). Não leia o CSV completo nem os dados reais. O seu lote está na secção 6 e a especificação exata na secção 7. Há um prompt-modelo na secção 11.
+> **Para o Claude que lê isto:** leia este documento inteiro uma vez, depois só a linha do CSV de cada métrica que vai implementar (`grep "^OBS-04," spec/metricas_modis_viirs.csv`). Não leia o CSV completo nem os dados reais. O seu lote está na secção 6; a especificação exata está na secção 7 (L2), nas secções 7B e 7C (L3) ou na 7D (L4). Há prompts-modelo na secção 11.
 
 ---
 
@@ -130,32 +130,32 @@ Tabela gerada a partir do CSV. A coluna **Adequação** é uma triagem inicial (
 | QA-02 | Taxa de retenção dos filtros | MVP | L1 | Implementada | Alta |  |
 | QA-03 | Registos agrupados por célula-dia no mesmo satélite | MVP | L1 | Implementada | Alta | Define-se sobre elegíveis, por satélite. |
 | QA-04 | Redundância entre satélites do mesmo sensor | MVP | L1 | Implementada | Alta | Para VIIRS vale 0 por construção (só NOAA-20). |
-| OBS-04 | Percentagem de deteções noturnas | Extra | L2 | A implementar | Baixa |  |
-| OBS-05 | FRP mediana | Extra | L2 | A implementar | Baixa | FRP utilizável = não nulo e > 0. |
-| OBS-06 | Percentil 90 de FRP | Extra | L2 | A implementar | Baixa |  |
-| OBS-07 | Pico de FRP | Extra | L2 | A implementar | Baixa | Desempate determinístico. |
-| OBS-08 | Disponibilidade de FRP | Extra | L2 | A implementar | Média |  |
-| OBS-09 | Distribuição por tipo de fonte térmica | Opcional | L2 | A implementar | Média | Não interpretar `type` do VIIRS sem confirmar a revisão do produto. |
-| OBS-10 | Área mediana do píxel de deteção | Opcional | L2 | A implementar | Média | Parcial hoje: `pixel_area_km2` por linha existe; falta a mediana. |
-| QA-01 | Taxa de validação do esquema | MVP | L2 | A implementar | Alta | Parcial hoje: só `n_bad_time`; falta a taxa e as regras. Valida-se após a coerção do notebook 01. |
-| CAL-05 | Atividade total no período | MVP | L3 | Útil, depende de L1 | Alta | Soma de CAL-04. |
-| CAL-06 | Mês-ano de pico | MVP | L3 | Útil, depende de L1 | Alta | Regra de empate a fixar. |
-| CAL-07 | Ano de pico | MVP | L3 | Útil, depende de L1 | Alta | Só anos completos. |
-| CAL-08 | Média anual de atividade | MVP | L3 | Útil, depende de L1 | Alta | Só anos completos e elegíveis. |
-| CAL-09 | Média histórica do mesmo mês | MVP | L3 | Útil, depende de L1 | Alta | Período de referência a fixar. |
-| CAL-10 | Dias com deteções | Opcional | L3 | Útil, depende de L1 | Baixa |  |
-| CAL-11 | Maior atividade diária | Opcional | L3 | Útil, depende de L1 | Baixa |  |
-| CAL-12 | Perfil sazonal mensal | MVP | L3 | Útil, depende de L1 | Alta | Informar nº de anos por mês. |
-| HIS-03 | Anomalia mensal absoluta | MVP | L3 | Útil, depende de L1 | Alta | Depende de CAL-09. |
-| HIS-04 | Anomalia mensal percentual | Desejável | L3 | Útil, depende de L1 | Média | Média zero => NA. |
-| HIS-01 | Mediana histórica mensal | Desejável | L4 | Útil, depende de L1 | Média |  |
-| HIS-02 | Faixa histórica mensal | Desejável | L4 | Útil, depende de L1 | Média | Percentis 10/90; indicar tamanho da amostra. |
-| HIS-05 | Desvio padronizado mensal (z-score) | Desejável | L4 | Útil, depende de L1 | Média | Amostra pequena => NA. |
-| HIS-06 | Percentil histórico da atividade | Desejável | L4 | Útil, depende de L1 | Média |  |
-| HIS-07 | Acumulado comparável no ano | Desejável | L4 | Útil, depende de L1 | Média | Exige série diária multianual. |
-| HIS-08 | Variação homóloga mensal | Opcional | L4 | Útil, depende de L1 | Baixa |  |
-| HIS-09 | Meses acima da faixa histórica | Desejável | L4 | Útil, depende de L1 | Média | Fixar a referência antes de comparar. |
-| HIS-10 | Tendência dos totais anuais | Opcional | L4 | Útil, depende de L1 | Baixa | Theil-Sen só com anos completos e comparáveis; atenção ao degrau MODIS 2002 (Aqua) e 2018. |
+| OBS-04 | Percentagem de deteções noturnas | Extra | L2 | Implementada | Baixa |  |
+| OBS-05 | FRP mediana | Extra | L2 | Implementada | Baixa | FRP utilizável = não nulo e > 0. |
+| OBS-06 | Percentil 90 de FRP | Extra | L2 | Implementada | Baixa |  |
+| OBS-07 | Pico de FRP | Extra | L2 | Implementada | Baixa | Desempate determinístico. |
+| OBS-08 | Disponibilidade de FRP | Extra | L2 | Implementada | Média |  |
+| OBS-09 | Distribuição por tipo de fonte térmica | Opcional | L2 | Implementada | Média | Não interpretar `type` do VIIRS sem confirmar a revisão do produto. |
+| OBS-10 | Área mediana do píxel de deteção | Opcional | L2 | Implementada | Média | Parcial hoje: `pixel_area_km2` por linha existe; falta a mediana. |
+| QA-01 | Taxa de validação do esquema | MVP | L2 | Implementada | Alta | Parcial hoje: só `n_bad_time`; falta a taxa e as regras. Valida-se após a coerção do notebook 01. |
+| CAL-05 | Atividade total no período | MVP | L3 | A implementar | Alta | Soma de CAL-04. |
+| CAL-06 | Mês-ano de pico | MVP | L3 | A implementar | Alta | Regra de empate a fixar. |
+| CAL-07 | Ano de pico | MVP | L3 | A implementar | Alta | Só anos completos. |
+| CAL-08 | Média anual de atividade | MVP | L3 | A implementar | Alta | Só anos completos e elegíveis. |
+| CAL-09 | Média histórica do mesmo mês | MVP | L3 | A implementar | Alta | Período de referência a fixar. |
+| CAL-10 | Dias com deteções | Opcional | L3 | A implementar | Baixa |  |
+| CAL-11 | Maior atividade diária | Opcional | L3 | A implementar | Baixa |  |
+| CAL-12 | Perfil sazonal mensal | MVP | L3 | A implementar | Alta | Informar nº de anos por mês. |
+| HIS-03 | Anomalia mensal absoluta | MVP | L3 | A implementar | Alta | Depende de CAL-09. |
+| HIS-04 | Anomalia mensal percentual | Desejável | L3 | A implementar | Média | Média zero => NA. |
+| HIS-01 | Mediana histórica mensal | Desejável | L4 | A implementar | Média |  |
+| HIS-02 | Faixa histórica mensal | Desejável | L4 | A implementar | Média | Percentis 10/90; indicar tamanho da amostra. |
+| HIS-05 | Desvio padronizado mensal (z-score) | Desejável | L4 | A implementar | Média | Amostra pequena => NA. |
+| HIS-06 | Percentil histórico da atividade | Desejável | L4 | A implementar | Média |  |
+| HIS-07 | Acumulado comparável no ano | Desejável | L4 | A implementar | Média | Exige série diária multianual. |
+| HIS-08 | Variação homóloga mensal | Opcional | L4 | A implementar | Baixa |  |
+| HIS-09 | Meses acima da faixa histórica | Desejável | L4 | A implementar | Média | Fixar a referência antes de comparar. |
+| HIS-10 | Tendência dos totais anuais | Opcional | L4 | A implementar | Baixa | Theil-Sen só com anos completos e comparáveis; atenção ao degrau MODIS 2002 (Aqua) e 2018. |
 | ESP-01 | Densidade de atividade | Opcional | L5 | Útil, requer dados extra | Baixa | Precisa da área de cada país (fonte externa simples). |
 | ESP-02 | Células distintas com deteções | Desejável | L5 | Útil, depende de L1 | Média |  |
 | ESP-03 | Recorrência por célula | Desejável | L5 | Útil, depende de L1 | Média |  |
@@ -189,10 +189,10 @@ Tabela gerada a partir do CSV. A coluna **Adequação** é uma triagem inicial (
 | EXT-06 | Humidade relativa em dias de atividade elevada | Fora do MVP | — | Fora do pipeline | Baixa | Dados externos; fora do MVP. |
 | QA-06 | Proporção de atividade provisória | Opcional | — | Rever | Baixa | Os arquivos anuais são de processamento padrão; o valor seria ~0. Faz sentido só com dados NRT. |
 | QA-07 | Atraso da última observação disponível | Extra | — | Fora do pipeline | Baixa | Mede-se na ingestão/aplicação, não em arquivos históricos. |
-| ADD-01 | Satélites ativos por mês | (nova) | L4 | Adicional proposta | Alta | Satélites ativos por mês: explica o degrau Terra->Aqua em 2002. |
-| ADD-02 | Dias sem deteções globais por sensor | (nova) | L4 | Adicional proposta | Alta | Dias sem deteções globais por sensor: proxy de falhas de cobertura. |
-| ADD-03 | Duplicados exatos e pontos (0,0) | (nova) | L2 | A implementar | Média | Adicional proposta: duplicados exatos e pontos (0,0). |
-| ADD-04 | Países sem deteções num ano | (nova) | L2 | A implementar | Média | Adicional proposta: países sem deteções num ano. |
+| ADD-01 | Satélites ativos por mês | (nova) | L4 | A implementar | Alta | Satélites ativos por mês: explica o degrau Terra->Aqua em 2002. |
+| ADD-02 | Dias sem deteções globais por sensor | (nova) | L4 | A implementar | Alta | Dias sem deteções globais por sensor: proxy de falhas de cobertura. |
+| ADD-03 | Duplicados exatos e pontos (0,0) | (nova) | L2 | Implementada | Média | Adicional proposta: duplicados exatos e pontos (0,0). |
+| ADD-04 | Países sem deteções num ano | (nova) | L2 | Implementada | Média | Adicional proposta: países sem deteções num ano. |
 | ADD-05 | Sensibilidade ao filtro de tipo | (nova) | L5 | Adicional proposta | Média | Sensibilidade ao filtro de `type`. |
 | ADD-06 | Efeito do degrau MODIS->união em 2018 | (nova) | L5 | Adicional proposta | Alta | Efeito do degrau MODIS->união em 2018. |
 
@@ -201,26 +201,30 @@ Tabela gerada a partir do CSV. A coluna **Adequação** é uma triagem inicial (
 | Lote | Quem | Métricas | Depende de |
 |---|---|---|---|
 | **L1** | Arthur + Claude | CAL-01, CAL-02, CAL-03, CAL-04, OBS-01, OBS-02, OBS-03, QA-02, QA-03, QA-04 | só `processed/` |
-| **L2** | Colega + Claude | ADD-03, ADD-04, OBS-04, OBS-05, OBS-06, OBS-07, OBS-08, OBS-09, OBS-10, QA-01 | só `processed/` |
-| L3 | depois do merge | CAL-05, CAL-06, CAL-07, CAL-08, CAL-09, CAL-10, CAL-11, CAL-12, HIS-03, HIS-04 | tabelas do L1 |
-| L4 | depois do merge | ADD-01, ADD-02, HIS-01, HIS-02, HIS-05, HIS-06, HIS-07, HIS-08, HIS-09, HIS-10 | tabelas do L1 |
+| **L2** (entregue) | Colega + Claude | ADD-03, ADD-04, OBS-04, OBS-05, OBS-06, OBS-07, OBS-08, OBS-09, OBS-10, QA-01 | só `processed/` |
+| **L3** | Colega + Claude (2.ª ronda) | CAL-05, CAL-06, CAL-07, CAL-08, CAL-09, CAL-10, CAL-11, CAL-12, HIS-03, HIS-04 | saídas `l1_*` do L1 (já no `main`) |
+| **L4** | Arthur + Claude | ADD-01, ADD-02, HIS-01, HIS-02, HIS-05, HIS-06, HIS-07, HIS-08, HIS-09, HIS-10 | saídas `l1_*` do L1 (já no `main`) |
 | L5 | depois do merge | ADD-05, ADD-06, ESP-01, ESP-02, ESP-03, ESP-04, ESP-06, QA-05 | L1 (+ dados extra em alguns) |
 | L6 | depois do merge | HAR-01, HAR-02, HAR-03, HAR-04, HAR-05, HAR-06, HAR-07 | L1, período 2018+ |
 | L7 | depois do merge | HAR-08, HAR-09, HAR-10, HAR-11, HAR-12, HAR-13, HAR-14 | L1/L6, período 2018+ |
 | — | não se implementam já | APP-01, APP-02, APP-03, APP-04, ESP-05, EXT-01, EXT-02, EXT-03, EXT-04, EXT-05, EXT-06, QA-06, QA-07 | — |
 
-**L1 e L2 são independentes e correm em paralelo.** Nenhum lê saídas do outro.
+**L1 e L2 foram independentes e correram em paralelo** (já estão no `main`).
+
+**L3 e L4 também são independentes entre si e correm em paralelo:** ambos leem apenas as tabelas `metrics/l1_*.parquet` e escrevem as suas (`l3_*` / `l4_*`); **nenhum lê saídas do outro**. A partir daqui o L1 é só uma fonte de dados, e quem implementa o L3 ou o L4 não precisa de ler o código do L1 nem do L2.
 
 ### Ficheiros reservados por lote (só cria/edita os do seu lote)
 
-| | L1 (Arthur) | L2 (colega) |
-|---|---|---|
-| Módulos | `data/pipeline/metrics/common.py`, `counts.py`, `calendar_metrics.py` | `data/pipeline/metrics/detections.py`, `ingestion_qa.py` |
-| Testes | `data/pipeline/tests/test_common.py`, `test_counts.py`, `test_calendar_metrics.py`, `test_integration_sample_lote1.py`, `helpers_lote1.py` | `data/pipeline/tests/test_detections.py`, `test_ingestion_qa.py` |
-| Notebook | `data/pipeline/notebooks/02_metrics_lote1.ipynb` | `data/pipeline/notebooks/03_metrics_lote2.ipynb` |
-| Relatório | `spec/lotes/lote_1.md` | `spec/lotes/lote_2.md` |
-| Saídas em `metrics/` | `l1_*.parquet`, `_log_lote1.csv` | `l2_*.parquet`, `_log_lote2.csv` |
-| Onde se faz push | `main` | `main` |
+| | L1 (Arthur) | L2 (colega) | L3 (colega) | L4 (Arthur) |
+|---|---|---|---|---|
+| Módulos | `data/pipeline/metrics/common.py`, `counts.py`, `calendar_metrics.py` | `data/pipeline/metrics/detections.py`, `ingestion_qa.py` | `data/pipeline/metrics/calendar_summary.py`, `history_anomaly.py` | `data/pipeline/metrics/history_distribution.py`, `history_cumulative.py`, `coverage_meta.py` |
+| Testes | `data/pipeline/tests/test_common.py`, `test_counts.py`, `test_calendar_metrics.py`, `test_integration_sample_lote1.py`, `helpers_lote1.py` | `data/pipeline/tests/test_detections.py`, `test_ingestion_qa.py` | `data/pipeline/tests/test_calendar_summary.py`, `test_history_anomaly.py` (e `helpers_lote3.py` se precisar) | `data/pipeline/tests/test_history_distribution.py`, `test_history_cumulative.py`, `test_coverage_meta.py` (e `helpers_lote4.py` se precisar) |
+| Notebook | `data/pipeline/notebooks/02_metrics_lote1.ipynb` | `data/pipeline/notebooks/03_metrics_lote2.ipynb` | `data/pipeline/notebooks/04_metrics_lote3.ipynb` | `data/pipeline/notebooks/05_metrics_lote4.ipynb` |
+| Relatório | `spec/lotes/lote_1.md` | `spec/lotes/lote_2.md` | `spec/lotes/lote_3.md` | `spec/lotes/lote_4.md` |
+| Saídas em `metrics/` | `l1_*.parquet`, `_log_lote1.csv` | `l2_*.parquet`, `_log_lote2.csv` | `l3_*.parquet`, `_log_lote3.csv` | `l4_*.parquet`, `_log_lote4.csv` |
+| Onde se faz push | `main` | `main` | `main` | `main` |
+
+`data/pipeline/metrics/__init__.py` já existe (vazio): **não o altere**.
 
 **Ficheiros que ninguém edita** (evitam conflitos de merge): `requirements.txt`, `.gitignore`, `data/README.md`, `data/MANIFEST.md`, `data/pipeline/notebooks/01_ingest_harmonize.ipynb`, `data/pipeline/notebooks/02_metrics.ipynb`, `spec/metricas_modis_viirs.csv`, este documento, `data/pipeline/tests/conftest.py`, `data/pipeline/pytest.ini`. O Arthur atualiza os partilhados depois do merge. `data/pipeline/metrics/__init__.py` pode ser criado por ambos **vazio** (ficheiros iguais fundem sem conflito).
 
@@ -291,6 +295,104 @@ Todas as tabelas de saída gravam-se em `metrics/` com o prefixo `l2_`. "Base" =
 - Esperado: para cada `instrument`, os países que aparecem em **algum** ano e os anos desde o mínimo ao máximo desse instrumento. Saída: `instrument, year, country, n_years_with_data` para cada combinação esperada **sem linhas** (ou `n_rows == 0`).
 - Limitação a registar: a partir de `processed/` não se distingue "país sem deteções" de "ficheiro em falta"; o `n_csv` por sensor-ano está em `processed/_ingest_log.csv`.
 
+## 7B. Convenções de histórico (comuns ao Lote 3 e ao Lote 4)
+
+L3 e L4 **não leem `processed/`**: leem as tabelas do L1 que já estão em `metrics/` (Drive) e no `main`. São independentes entre si e correm em paralelo; **nenhum lê saídas do outro** (L3 → `l3_*`, L4 → `l4_*`). Nos testes usam-se DataFrames sintéticos com os esquemas abaixo, nunca dados reais.
+
+### Esquemas de entrada (tabelas `l1_*`)
+| Tabela | Colunas (tipo) | Notas |
+|---|---|---|
+| `l1_cal_monthly` | `country` (texto), `year` (int), `month` (int 1–12), `series` (`modis`/`viirs`/`combined`), `cell_days` (int), `partial` (bool), `n_unknown_days` (int) | **densa** dentro do intervalo de cada série: meses sem atividade têm `cell_days = 0` |
+| `l1_cal_annual` | `country`, `year`, `series`, `cell_days`, `partial` (bool), `n_unknown_days` | soma dos meses; `partial` se falta algum mês ou algum mês é parcial |
+| `l1_cal_daily` | `country`, `date` (datetime), `series`, `n_cells` (int) | **só dias com atividade** (um dia sem deteções não tem linha) |
+| `l1_cal_coverage` | `instrument` (`MODIS`/`VIIRS`), `date` (datetime), `n_rows_global` (int) | calendário completo de cada sensor; `n_rows_global == 0` ⇒ cobertura desconhecida |
+| `l1_obs01_raw_counts` | `country`, `year`, `month`, `instrument`, `satellite`, `n_raw` (int) | deteções brutas |
+
+### Constantes e regras congeladas
+| Nome | Valor | Significado |
+|---|---|---|
+| `MAX_UNKNOWN_DAYS` | `0` | um mês/ano só é **válido** se não for parcial e tiver no máximo estes dias de cobertura desconhecida |
+| `MIN_REF_YEARS` | `5` | mínimo de anos na referência; abaixo disso a estatística é **NA** (a linha existe e `n_ref_years` informa) |
+| `MIN_TREND_YEARS` | `8` | mínimo de anos para a tendência (HIS-10) |
+
+Referência de implementação da validade (copiar para o seu módulo; é uma cópia privada, como no L2):
+
+```python
+def valid_mask(table, max_unknown_days=0):
+    """Mes ou ano valido: nao parcial e com no maximo `max_unknown_days` dias de cobertura desconhecida."""
+    return (~table["partial"].astype(bool)) & (table["n_unknown_days"] <= max_unknown_days)
+```
+
+### Pool de referência
+- **Pool** de `(country, series, month)` = valores `cell_days` dos meses **válidos** desse mês civil, um por ano, nos anos do intervalo de referência `[ref_start, ref_end]` (inclusivos; `None` = sem limite).
+- **Referência fixa** (CAL-09, CAL-12, HIS-01, HIS-02, HIS-09): usa o pool inteiro.
+- **Referência sem o ano avaliado** (HIS-03/04/05/06 e HIS-07): para a linha do ano `Y`, usa o pool **sem o ano `Y`** (leave-one-out). Isto evita que o próprio mês avaliado contamine a referência.
+- Se o pool tiver menos de `MIN_REF_YEARS` valores, a estatística é NA.
+- Linha avaliada **inválida** (parcial ou com dias desconhecidos): as colunas derivadas ficam NA, `valid_month = False`, e a linha continua na tabela.
+- **Estatísticas:** média aritmética; mediana; desvio-padrão **amostral** (`ddof=1`); percentis por interpolação linear (`numpy.percentile(..., method="linear")`).
+- Tabelas de saída: sem índice, ordenadas pelas colunas-chave, `year`/`month` inteiros, `series` sempre presente, datas como `datetime`.
+- Uma série (`country`, `series`) com menos de 1 valor válido aparece com NA, nunca desaparece em silêncio (salvo indicação em contrário na métrica).
+
+Exemplo trabalhado (use-o como teste literal): mês 3 de um país/série com 6 anos válidos de valores `[10, 20, 30, 40, 50, 60]` nos anos 2001…2006. Referência fixa: média 35, mediana 35, `n_ref_years = 6`. Para o ano 2003 (valor 30) a referência sem o ano avaliado é `[10, 20, 40, 50, 60]`: média 36, ⇒ `anomaly_abs = −6` e `anomaly_pct = −16,666…`. Para 2001 (valor 10): média dos restantes 40, `anomaly_abs = −30`; para 2006 (valor 60): média dos restantes 30, `anomaly_abs = +30`.
+Invariante: se todas as linhas desse pool são válidas, **a soma das anomalias absolutas leave-one-out é 0**.
+
+---
+
+## 7C. Especificação do Lote 3 (colega, 2.ª ronda)
+
+Métricas: **CAL-05, CAL-06, CAL-07, CAL-08, CAL-09, CAL-10, CAL-11, CAL-12, HIS-03, HIS-04** (10).
+Contrato das funções, ficheiros e testes: como em 7.1 e nas secções 6 e 9. Leia a linha de cada métrica no CSV, mas **o que está aqui prevalece**. Os parâmetros `ref_start`, `ref_end`, `min_ref_years`, `max_unknown_days` têm os valores da secção 7B por defeito.
+
+**Ficheiros reservados do L3** (ver tabela da secção 6): `data/pipeline/metrics/calendar_summary.py` (CAL-05…CAL-12), `data/pipeline/metrics/history_anomaly.py` (HIS-03, HIS-04), `data/pipeline/tests/test_calendar_summary.py`, `data/pipeline/tests/test_history_anomaly.py`, `data/pipeline/notebooks/04_metrics_lote3.ipynb`, `spec/lotes/lote_3.md`, saídas `l3_*.parquet` e `_log_lote3.csv`.
+
+| Métrica | Função (módulo) · tabela de saída | Entrada | Regra e colunas |
+|---|---|---|---|
+| **CAL-05** Atividade total no período | `cal05_total_period(monthly, start=None, end=None)` (`calendar_summary`) · `l3_cal05_total_period` | `l1_cal_monthly` | `start`/`end` são `(ano, mês)` inclusivos; `None` = primeiro/último mês de cada `(country, series)`. Colunas: `country, series, start_year, start_month, end_year, end_month, cell_days` (soma, **incluindo** meses parciais), `n_months`, `n_partial_months`, `n_unknown_days`. Grupos sem meses no intervalo não aparecem |
+| **CAL-06** Mês-ano de pico | `cal06_peak_month(monthly, max_unknown_days=0)` · `l3_cal06_peak_month` | `l1_cal_monthly` | Máximo de `cell_days` entre os meses **válidos**; empate ⇒ o menor `(year, month)`. Colunas: `country, series, year, month, cell_days, n_valid_months`. Sem meses válidos ⇒ uma linha com `year, month, cell_days` NA e `n_valid_months = 0` |
+| **CAL-07** Ano de pico | `cal07_peak_year(annual, max_unknown_days=0)` · `l3_cal07_peak_year` | `l1_cal_annual` | Igual a CAL-06 sobre anos **válidos** (só anos completos). Colunas: `country, series, year, cell_days, n_valid_years` |
+| **CAL-08** Média anual | `cal08_annual_mean(annual, ref_start=None, ref_end=None, max_unknown_days=0)` · `l3_cal08_annual_mean` | `l1_cal_annual` | Média de `cell_days` dos anos válidos dentro de `[ref_start, ref_end]`. Colunas: `country, series, n_years, mean_cell_days, first_year, last_year, years_included` (texto `"2001,2002,2003"`, ordenado). `n_years = 0` ⇒ média NA, `years_included = ""`, `first_year/last_year` NA |
+| **CAL-09** Média histórica do mesmo mês | `cal09_monthly_mean(monthly, ref_start=None, ref_end=None, min_ref_years=5, max_unknown_days=0)` · `l3_cal09_monthly_mean` | `l1_cal_monthly` | **Referência fixa** (sem leave-one-out). 12 linhas (`month` 1–12) por `(country, series)` existente. Colunas: `country, series, month, n_years, mean_cell_days` (NA se `n_years < min_ref_years`) |
+| **CAL-10** Dias com deteções | `cal10_active_days(daily, monthly)` · `l3_cal10_active_days` | `l1_cal_daily` + `l1_cal_monthly` | Usa `monthly` como **esqueleto** (uma linha por país-série-mês, 0 se não houver dias ativos). Colunas: `country, series, year, month, active_days` (datas distintas com `n_cells ≥ 1`), `n_days_in_month` (dias do calendário, ano bissexto incluído). Invariante: `active_days ≤ n_days_in_month` |
+| **CAL-11** Maior atividade diária | `cal11_peak_day(daily)` · `l3_cal11_peak_day` | `l1_cal_daily` | Por `(country, series, year)`: dia com maior `n_cells`; empate ⇒ a data mais antiga. Colunas: `country, series, year, date, n_cells`. Anos sem atividade não aparecem. O pico de todo o período obtém-se depois como o máximo entre anos |
+| **CAL-12** Perfil sazonal | `cal12_seasonal_profile(cal09)` · `l3_cal12_seasonal_profile` | saída de `cal09_monthly_mean` | Colunas: `country, series, month, n_years, mean_cell_days, share_pct` (`100·mean/Σ(mean dos 12 meses)`; NA se algum dos 12 meses tiver média NA ou se a soma for 0) e `is_peak_month` (bool; só o mês de maior média, empate ⇒ o menor mês; médias NA ⇒ False) |
+| **HIS-03** Anomalia mensal absoluta | `his03_anomaly_abs(monthly, ref_start=None, ref_end=None, min_ref_years=5, max_unknown_days=0)` (`history_anomaly`) · `l3_his03_anomaly_abs` | `l1_cal_monthly` | **Referência sem o ano avaliado.** Uma linha por linha de entrada. Colunas: `country, series, year, month, cell_days, valid_month, n_ref_years, ref_mean, anomaly_abs` (`cell_days − ref_mean`; positivo = acima da referência). NA se `valid_month` é False ou `n_ref_years < min_ref_years` |
+| **HIS-04** Anomalia percentual | `his04_anomaly_pct(his03)` · `l3_his04_anomaly_pct` | saída de `his03_anomaly_abs` | Colunas: `country, series, year, month, cell_days, ref_mean, anomaly_abs, anomaly_pct` (`100·anomaly_abs/ref_mean`; NA se `ref_mean` é NA ou 0 ou a anomalia é NA) |
+
+**Casos de teste mínimos específicos do L3** (além dos 6 pontos da secção 9):
+- CAL-06: dois meses empatados no máximo escolhem o mais antigo; um mês parcial com valor maior **não** ganha; todos inválidos ⇒ linha NA com `n_valid_months = 0`.
+- CAL-08: anos `[100, 200, 300]` válidos + um ano parcial de valor 999 ⇒ média 200, `years_included = "2001,2002,2003"` (o parcial fica fora).
+- CAL-09/HIS-03: o exemplo trabalhado da secção 7B (literal), mais: um mês com `n_unknown_days = 1` fica fora do pool; `n_ref_years = 4` ⇒ médias NA; com `ref_start/ref_end` o pool encolhe mas as linhas avaliadas continuam todas presentes.
+- HIS-03: a soma das anomalias leave-one-out de um pool completo é 0 (tolerância `1e-9`).
+- CAL-10: dia 29 de fevereiro num ano bissexto (`n_days_in_month = 29`); mês sem dias ativos aparece com 0.
+- CAL-12: `share_pct` dos 12 meses soma 100; média zero em todos os meses ⇒ `share_pct` NA.
+- Entradas com várias séries e vários países: os resultados de um grupo **não** dependem dos outros.
+
+**Notebook `04_metrics_lote3.ipynb`:** monta a Drive, `git clone`/`pull` do repo, `sys.path.insert(0, ".../data/pipeline")`, lê `metrics/l1_cal_monthly.parquet`, `l1_cal_annual.parquet` e `l1_cal_daily.parquet`, aplica as funções, grava `metrics/l3_*.parquet` (escrita `.tmp` + rename) e `metrics/_log_lote3.csv` (parâmetros usados: `ref_start`, `ref_end`, `min_ref_years`, `max_unknown_days`, commit do repo, nº de linhas por tabela). Falha com mensagem clara se alguma tabela `l1_*` não existir (é preciso ter corrido o notebook 02 antes). As tabelas são pequenas: não precisa de ciclo por ano.
+
+---
+
+## 7D. Especificação do Lote 4 (Arthur + Claude)
+
+Métricas: **HIS-01, HIS-02, HIS-05, HIS-06, HIS-07, HIS-08, HIS-09, HIS-10, ADD-01, ADD-02** (10).
+**Ficheiros reservados do L4:** `data/pipeline/metrics/history_distribution.py` (HIS-01, HIS-02, HIS-05, HIS-06, HIS-09), `history_cumulative.py` (HIS-07, HIS-08, HIS-10), `coverage_meta.py` (ADD-01, ADD-02); testes `test_history_distribution.py`, `test_history_cumulative.py`, `test_coverage_meta.py`; notebook `05_metrics_lote4.ipynb`; relatório `spec/lotes/lote_4.md`; saídas `l4_*.parquet` e `_log_lote4.csv`.
+
+| Métrica | Tabela | Entrada | Regra e colunas |
+|---|---|---|---|
+| **HIS-01** Mediana histórica | `l4_his01_hist_median` | `l1_cal_monthly` | Referência fixa. `country, series, month, n_ref_years, median_cell_days` (NA se `n_ref_years < 5`) |
+| **HIS-02** Faixa histórica | `l4_his02_hist_band` | `l1_cal_monthly` | Referência fixa. `country, series, month, n_ref_years, p10, p90` (percentis lineares; NA se `n_ref_years < 5`) |
+| **HIS-05** z-score mensal | `l4_his05_zscore` | `l1_cal_monthly` | Sem o ano avaliado. `country, series, year, month, cell_days, valid_month, n_ref_years, ref_mean, ref_std, zscore` (`(cell_days − ref_mean)/ref_std`, `ddof=1`; NA se `ref_std == 0` ou amostra insuficiente ou mês inválido) |
+| **HIS-06** Percentil histórico | `l4_his06_percentile` | `l1_cal_monthly` | Sem o ano avaliado. `…, valid_month, n_ref_years, percentile` = `100·(#pool < x + 0,5·#pool == x)/n_pool` (NA como acima) |
+| **HIS-07** Acumulado comparável no ano | `l4_his07_ytd` | `l1_cal_monthly` | Por `(country, series, year, month)`: `ytd_cell_days` = soma de janeiro até esse mês; `comparable` = todos esses meses são válidos; referência = média do `ytd` do mesmo mês nos **outros** anos comparáveis (`n_ref_years`, `ref_ytd_mean`), `ytd_diff` = `ytd − ref_ytd_mean`. NA se não comparável ou amostra insuficiente. Só cortes ao fim de cada mês |
+| **HIS-08** Variação homóloga | `l4_his08_yoy` | `l1_cal_monthly` | `…, cell_days, prev_cell_days, diff_abs, yoy_pct`. Exige o mesmo mês do ano anterior presente e **ambos válidos**; `yoy_pct = 100·diff_abs/prev_cell_days`, NA se `prev_cell_days == 0` (a `diff_abs` continua preenchida) |
+| **HIS-09** Meses acima da faixa | `l4_his09_months_above` | `l1_cal_monthly` | **Referência fixa** (HIS-02 com `ref_start/ref_end`), por `(country, series, year)`: `n_months_evaluated` (válidos com p90 definido), `n_months_above` (`cell_days > p90`, estrito), `months_above` (texto `"3,4"`). O ano avaliado pode estar dentro da referência (fixa por definição); registar no relatório |
+| **HIS-10** Tendência anual | `l4_his10_trend` | `l1_cal_annual` | Por `(country, series)`, só anos válidos, `n_years ≥ 8`. Declive de Theil-Sen = mediana dos declives de todos os pares de anos; `intercept = mediana(y − declive·x)`. Colunas: `n_years, first_year, last_year, slope_per_year, intercept, slope_p025, slope_p975` (percentis 2,5 e 97,5 dos declives dos pares: dispersão, **não** um intervalo de confiança formal; dizê-lo no relatório). NA se `n_years < 8` |
+| **ADD-01** Satélites ativos por mês | `l4_add01_active_satellites` | `l1_obs01_raw_counts` | Global (todos os países somados): `instrument, year, month, n_satellites` (satélites com `n_raw > 0`), `satellites` (texto ordenado `"Aqua,Terra"`) |
+| **ADD-02** Dias sem deteções globais | `l4_add02_zero_days` | `l1_cal_coverage` | `instrument, year, month, n_days` (dias do calendário no intervalo do sensor), `n_zero_days` (`n_rows_global == 0`), `pct_zero_days` |
+
+Notebook `05_metrics_lote4.ipynb`: mesmo padrão do notebook do L3, lendo `l1_cal_monthly`, `l1_cal_annual`, `l1_obs01_raw_counts` e `l1_cal_coverage`.
+
+---
+
 ## 8. Especificação resumida do Lote 1 (Arthur), para o mesmo nível de rigor
 
 Chave `country, year[, month], instrument, satellite` como no lote 2. Tabelas `l1_*` (alinhadas com o implementado; relatório em `spec/lotes/lote_1.md`):
@@ -338,6 +440,8 @@ Além disso:
 5. **Log:** `metrics/_log_lote<N>.csv` com métrica, parâmetros usados (grelha, filtro), anos, linhas de saída, data da execução.
 6. **Verificação rápida:** imprimir dtypes e `head`, e as invariantes principais (somas, `pct`).
 
+**Lotes 3 e 4:** não há ciclo por ano; o notebook lê as tabelas `metrics/l1_*.parquet` (pequenas), aplica as funções e grava `l3_*`/`l4_*` e o log (ver 7C e 7D). Falha com mensagem clara se faltar alguma tabela `l1_*`.
+
 O VIIRS é pesado (cerca de 3 GB comprimidos no raw): processe ano a ano, leia poucas colunas e ative High-RAM se faltar memória.
 
 ## 11. Poupar tokens, checklist e prompt-modelo
@@ -357,6 +461,10 @@ O VIIRS é pesado (cerca de 3 GB comprimidos no raw): processe ano a ano, leia p
 - [ ] Nenhum ficheiro reservado a outro lote ou partilhado foi alterado; nenhum dado no Git.
 - [ ] `/review-gate` corrido.
 
-**Prompt-modelo** (para colar no Claude do colega)
+**Prompt-modelo genérico** (substitua `N`, a secção e os ficheiros do seu lote, tirados da tabela da secção 6)
 
-> Vais implementar o **Lote 2** de métricas do projeto Sprinklers. Lê `spec/metodologia_metricas.md` inteiro uma vez. Segue **exatamente** a secção 7 (especificação), a secção 3 (convenções congeladas), a secção 6 (ficheiros reservados: só podes criar `data/pipeline/metrics/detections.py`, `data/pipeline/metrics/ingestion_qa.py`, `data/pipeline/metrics/__init__.py` vazio, `data/pipeline/tests/test_detections.py`, `data/pipeline/tests/test_ingestion_qa.py`, `data/pipeline/notebooks/03_metrics_lote2.ipynb` e `spec/lotes/lote_2.md`) e o protocolo de testes da secção 9. Trabalha direto em `main`: antes de cada push faz `git pull --rebase origin main`, nunca uses `git add -A`/`git add .` (adiciona só os ficheiros do teu lote) e nunca faças `push --force`; se houver conflito no rebase, pára e avisa. Para cada métrica, lê só a sua linha em `spec/metricas_modis_viirs.csv`. Escreve primeiro os testes (exemplo calculado à mão), depois a função. Não leias nem descarregues dados reais. Não instales nem alteres dependências partilhadas. Quando houver ambiguidade, aplica o que o documento diz e regista a dúvida no relatório do lote. No fim corre `/review-gate` e apresenta o resumo do relatório.
+> Vais implementar o **Lote N** de métricas do projeto Sprinklers. Lê `spec/metodologia_metricas.md` inteiro uma vez. Segue **exatamente** a secção 3 (convenções congeladas), a especificação do teu lote (L2: secção 7; L3: secções 7B e 7C; L4: secção 7D), a secção 6 (ficheiros reservados: só podes criar os ficheiros do teu lote que estão na tabela) e o protocolo de testes da secção 9. Trabalha direto em `main`: antes de cada push faz `git pull --rebase origin main`, nunca uses `git add -A`/`git add .` (adiciona só os ficheiros do teu lote) e nunca faças `push --force`; se houver conflito no rebase, pára e avisa. Para cada métrica, lê só a sua linha em `spec/metricas_modis_viirs.csv`; o que a especificação do lote diz prevalece sobre o CSV. Escreve primeiro os testes (exemplo calculado à mão), depois a função. Não leias nem descarregues dados reais: usa DataFrames sintéticos com os esquemas do documento. Não instales nem alteres dependências partilhadas. Quando houver ambiguidade, aplica o que o documento diz e regista a dúvida no relatório do lote. No fim corre `/review-gate` e apresenta o resumo do relatório.
+
+**Prompt pronto a colar para o Lote 3**
+
+> Vais implementar o **Lote 3** de métricas do projeto Sprinklers (CAL-05, CAL-06, CAL-07, CAL-08, CAL-09, CAL-10, CAL-11, CAL-12, HIS-03, HIS-04). Faz `git pull` primeiro: o código está agora em `data/pipeline/`. Lê `spec/metodologia_metricas.md` inteiro uma vez. Segue **exatamente** a secção 3 (convenções congeladas), as secções **7B e 7C** (convenções de histórico e a especificação do Lote 3, com as colunas exatas de cada tabela), a secção 6 (ficheiros reservados: só podes criar `data/pipeline/metrics/calendar_summary.py`, `data/pipeline/metrics/history_anomaly.py`, `data/pipeline/tests/test_calendar_summary.py`, `data/pipeline/tests/test_history_anomaly.py` (e `helpers_lote3.py` se precisares), `data/pipeline/notebooks/04_metrics_lote3.ipynb` e `spec/lotes/lote_3.md`; **não toques** em `data/pipeline/metrics/__init__.py`, que já existe) e o protocolo de testes da secção 9, incluindo os casos específicos do L3 e o exemplo trabalhado da secção 7B como teste literal. As funções recebem DataFrames no esquema das tabelas `l1_*` (secção 7B) e não leem `processed/` nem dados reais: nos testes usa DataFrames sintéticos. Trabalha direto em `main`: antes de cada push faz `git pull --rebase origin main`, nunca uses `git add -A`/`git add .` (adiciona só os ficheiros do teu lote) e nunca faças `push --force`; se houver conflito no rebase, pára e avisa. Para cada métrica, lê só a sua linha em `spec/metricas_modis_viirs.csv`; a especificação do lote prevalece sobre o CSV. Escreve primeiro os testes, depois a função. Não instales nem alteres dependências partilhadas. Quando houver ambiguidade, aplica o que o documento diz e regista a dúvida em `spec/lotes/lote_3.md`. No fim corre `/review-gate` e apresenta o resumo do relatório.
