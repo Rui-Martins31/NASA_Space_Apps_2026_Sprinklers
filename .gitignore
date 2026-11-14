@@ -5,3 +5,6 @@ __pycache__/*
 # Files
 !data/.gitkeep
 .DS_Store
+# MODIS datasets
+!data/MODIS_All_Countries/
+!data/MODIS_All_Countries/*.zip
