@@ -197,10 +197,9 @@ def test_invalid_dates_are_excluded_and_counted():
 
 
 def test_invariants_on_totals(d1, d2):
-    for df in (d1, d2):
-        valid = df[pd.to_datetime(df["acq_date"], format="%Y-%m-%d", errors="coerce").notna()]
-        assert obs01_raw_counts(df)["n_raw"].sum() == len(valid)
-        n_elig = int(((df["type"] == 0) & df["confidence_class"].isin(["n", "h"])).sum())
+    # n_raw: d1 tem 7 linhas, d2 tem 10; elegiveis (contados a mao nos comentarios dos fixtures): 4 e 9
+    for df, n_raw, n_elig in ((d1, 7, 4), (d2, 10, 9)):
+        assert obs01_raw_counts(df)["n_raw"].sum() == n_raw
         assert obs03_filtered_counts(df)["n_eligible"].sum() == n_elig
         q3 = qa03_cellday_grouped(df)
         assert q3["n_eligible"].sum() == n_elig
