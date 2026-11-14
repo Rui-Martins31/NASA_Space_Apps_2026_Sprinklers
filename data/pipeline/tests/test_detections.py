@@ -167,8 +167,8 @@ def test_notebook_synthetic_pipeline_and_resume(tmp_path):
     from pathlib import Path
     import subprocess
 
-    repo = Path(__file__).resolve().parents[2]
-    notebook = json.loads((repo / "backend/notebooks/03_metrics_lote2.ipynb").read_text(encoding="utf-8"))
+    repo = Path(__file__).resolve().parents[3]
+    notebook = json.loads((repo / "data/pipeline/notebooks/03_metrics_lote2.ipynb").read_text(encoding="utf-8"))
     sources = ["".join(cell["source"]) for cell in notebook["cells"] if cell["cell_type"] == "code"]
     for source in sources:
         ast.parse(source)

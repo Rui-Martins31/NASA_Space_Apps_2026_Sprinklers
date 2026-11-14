@@ -10,6 +10,6 @@ Os dados não estão no Git: ver [data/README.md](data/README.md).
 ```bash
 pip install -r requirements.txt
 export DRIVE_METRICS_FOLDER_ID=<id>
-python scripts/fetch_data.py
+python data/pipeline/scripts/fetch_data.py
 uvicorn backend.app.main:app --reload
 ```

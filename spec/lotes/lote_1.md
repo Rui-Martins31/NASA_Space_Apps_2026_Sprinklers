@@ -6,13 +6,13 @@ Metodologia: `spec/metodologia_metricas.md`. Estado: implementado e testado loca
 ## Ficheiros
 | Tipo | Ficheiro |
 |---|---|
-| Código | `backend/metrics/common.py`, `counts.py`, `calendar_metrics.py` (+ `__init__.py` vazio) |
-| Testes | `backend/tests/test_common.py` (24), `test_counts.py` (33), `test_calendar_metrics.py` (19), `test_integration_sample_lote1.py` (3), auxiliar `helpers_lote1.py` |
-| Notebook | `backend/notebooks/02_metrics_lote1.ipynb` (substitui o esqueleto `02_metrics.ipynb`, removido) |
+| Código | `data/pipeline/metrics/common.py`, `counts.py`, `calendar_metrics.py` (+ `__init__.py` vazio) |
+| Testes | `data/pipeline/tests/test_common.py` (24), `test_counts.py` (33), `test_calendar_metrics.py` (19), `test_integration_sample_lote1.py` (3), auxiliar `helpers_lote1.py` |
+| Notebook | `data/pipeline/notebooks/02_metrics_lote1.ipynb` (substitui o esqueleto `02_metrics.ipynb`, removido) |
 | Partilhados atualizados | `requirements.txt` (+`pytest`), `data/README.md`, `data/MANIFEST.md`, `spec/metodologia_metricas.md` (estado do L1 e secção 8) |
 
 ## Como correr
-- Testes: `cd backend && python -m pytest tests -q` (79 testes; 3 são de integração e só correm com `SPRINKLERS_SAMPLE_PARQUET=<caminho de modis_2000.parquet>`).
+- Testes: `cd data/pipeline && python -m pytest tests -q` (79 testes; 3 são de integração e só correm com `SPRINKLERS_SAMPLE_PARQUET=<caminho de modis_2000.parquet>`).
 - Notebook: abrir no Colab, correr a célula 1 (monta a Drive e faz `git clone` do repo), e para um teste curto pôr `SENSORS = {'modis'}` e `YEARS = {2000}` na célula 2. Os resultados ficam em `Sprinklers/metrics/l1_*.parquet`.
 
 ## Decisões e desvios em relação ao documento de metodologia

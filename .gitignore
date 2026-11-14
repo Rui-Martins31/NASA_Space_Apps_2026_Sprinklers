@@ -5,6 +5,7 @@ data/*
 !data/.gitkeep
 !data/README.md
 !data/MANIFEST.md
+!data/pipeline/
 
 # Python / notebooks
 __pycache__/

@@ -22,10 +22,10 @@ empty. Comments, docstrings, tests, notebook content and this report are in Engl
 
 ## Running
 
-From `backend`, run `python -m pytest tests -q`.
+From `data/pipeline`, run `python -m pytest tests -q`.
 
 Commit and push these L2 source files before running the notebook in Colab.
-Open `backend/notebooks/03_metrics_lote2.ipynb` and run all cells. The notebook
+Open `data/pipeline/notebooks/03_metrics_lote2.ipynb` and run all cells. The notebook
 mounts Drive, clones or fast-forwards the repository, and reads from
 `/content/drive/MyDrive/Sprinklers/processed`. Configure `SENSORS`, `YEARS`,
 `FORCE`, `CONFIDENCE` and `TYPE_VALUE` in its configuration cell.
@@ -76,7 +76,7 @@ Run a single notebook instance per output directory.
 
 ## Validation
 
-`cd backend && python -m pytest tests -q` completed with **80 passed**.
+`cd data/pipeline && python -m pytest tests -q` completed with **80 passed**.
 Tests call the real metric functions and the notebook's actual processing cells.
 They include manually calculated examples, empty schemas, missing fields,
 nullable types, invalid dates, eligibility exclusions and custom parameters,

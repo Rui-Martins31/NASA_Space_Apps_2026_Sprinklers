@@ -1,7 +1,7 @@
 """Descarrega a pasta metrics/ da Google Drive para data/metrics/.
 
 Uso:
-    DRIVE_METRICS_FOLDER_ID=<id> python scripts/fetch_data.py
+    DRIVE_METRICS_FOLDER_ID=<id> python data/pipeline/scripts/fetch_data.py
 """
 import os
 import sys
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import gdown
 
-DEST = Path(__file__).resolve().parent.parent / "data" / "metrics"
+DEST = Path(__file__).resolve().parents[2] / "metrics"
 
 
 def main() -> int:
