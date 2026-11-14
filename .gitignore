@@ -1,8 +1,10 @@
 # Folder
 data/*
+__pycache__/*
 
 # Files
 !data/.gitkeep
+<<<<<<< HEAD
 !data/README.md
 !data/MANIFEST.md
 
@@ -14,3 +16,9 @@ __pycache__/
 
 # Secrets
 .env
+=======
+.DS_Store
+# MODIS datasets
+!data/MODIS_All_Countries/
+!data/MODIS_All_Countries/*.zip
+>>>>>>> c8a5b7e273d15f0680f243b7c949f0c5112ae0e9
