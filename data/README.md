@@ -21,7 +21,8 @@ Notas: não há Suomi NPP (só NOAA-20 a partir de 2018); `viirs-jpss1_2023` est
 
 ## Fluxo
 1. No Colab, `backend/notebooks/01_ingest_harmonize.ipynb` lê os zips de `raw/`, harmoniza e grava `processed/<sensor>_<ano>.parquet` (coluna `country` incluída). Salta o que já existe.
-2. `02_metrics.ipynb` lê `processed/` e grava os agregados em `metrics/`.
+2. `02_metrics_lote1.ipynb` (métricas do Lote 1) lê `processed/` e grava os agregados em `metrics/` (`l1_*.parquet`, `_log_lote1.csv`, `_params_lote1.json`; parciais em `metrics/_partial_lote1/`). O código vem do repo (`backend/metrics/`) por `git clone` no Colab. Metodologia e lotes: `spec/metodologia_metricas.md`.
+   Testes: `cd backend && python -m pytest tests -q`.
 3. O backend só descarrega `metrics/`:
 
 ```bash

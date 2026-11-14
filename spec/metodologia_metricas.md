@@ -120,16 +120,16 @@ Tabela gerada a partir do CSV. A coluna **Adequação** é uma triagem inicial (
 
 | ID | Métrica | Prioridade (CSV) | Lote | Estado | Adequação | Nota |
 |---|---|---|---|---|---|---|
-| CAL-01 | Células-dia com deteções | MVP | L1 | A implementar | Alta | Base de todo o calendário; ver convenções. |
-| CAL-02 | Atividade diária | MVP | L1 | A implementar | Alta | Tabela diária de CAL-01 + flag de cobertura desconhecida. |
-| CAL-03 | Atividade mensal | MVP | L1 | A implementar | Alta | Flag de mês parcial. |
-| CAL-04 | Atividade anual | MVP | L1 | A implementar | Alta | Flag de ano parcial. |
-| OBS-01 | Deteções brutas por sensor e satélite | MVP | L1 | A implementar | Alta | Parcial hoje: o notebook 01 só regista `n_rows` por sensor-ano; falta por satélite/país/mês. |
-| OBS-02 | Distribuição por classe de confiança | MVP | L1 | A implementar | Alta |  |
-| OBS-03 | Deteções após o filtro de qualidade | MVP | L1 | A implementar | Alta |  |
-| QA-02 | Taxa de retenção dos filtros | MVP | L1 | A implementar | Alta |  |
-| QA-03 | Registos agrupados por célula-dia no mesmo satélite | MVP | L1 | A implementar | Alta | Define-se sobre elegíveis, por satélite. |
-| QA-04 | Redundância entre satélites do mesmo sensor | MVP | L1 | A implementar | Alta | Para VIIRS vale 0 por construção (só NOAA-20). |
+| CAL-01 | Células-dia com deteções | MVP | L1 | Implementada | Alta | Base de todo o calendário; ver convenções. |
+| CAL-02 | Atividade diária | MVP | L1 | Implementada | Alta | Tabela diária de CAL-01 + flag de cobertura desconhecida. |
+| CAL-03 | Atividade mensal | MVP | L1 | Implementada | Alta | Flag de mês parcial. |
+| CAL-04 | Atividade anual | MVP | L1 | Implementada | Alta | Flag de ano parcial. |
+| OBS-01 | Deteções brutas por sensor e satélite | MVP | L1 | Implementada | Alta | Parcial hoje: o notebook 01 só regista `n_rows` por sensor-ano; falta por satélite/país/mês. |
+| OBS-02 | Distribuição por classe de confiança | MVP | L1 | Implementada | Alta |  |
+| OBS-03 | Deteções após o filtro de qualidade | MVP | L1 | Implementada | Alta |  |
+| QA-02 | Taxa de retenção dos filtros | MVP | L1 | Implementada | Alta |  |
+| QA-03 | Registos agrupados por célula-dia no mesmo satélite | MVP | L1 | Implementada | Alta | Define-se sobre elegíveis, por satélite. |
+| QA-04 | Redundância entre satélites do mesmo sensor | MVP | L1 | Implementada | Alta | Para VIIRS vale 0 por construção (só NOAA-20). |
 | OBS-04 | Percentagem de deteções noturnas | Extra | L2 | A implementar | Baixa |  |
 | OBS-05 | FRP mediana | Extra | L2 | A implementar | Baixa | FRP utilizável = não nulo e > 0. |
 | OBS-06 | Percentil 90 de FRP | Extra | L2 | A implementar | Baixa |  |
@@ -216,7 +216,7 @@ Tabela gerada a partir do CSV. A coluna **Adequação** é uma triagem inicial (
 | | L1 (Arthur) | L2 (colega) |
 |---|---|---|
 | Módulos | `backend/metrics/common.py`, `counts.py`, `calendar_metrics.py` | `backend/metrics/detections.py`, `ingestion_qa.py` |
-| Testes | `backend/tests/test_common.py`, `test_counts.py`, `test_calendar_metrics.py` | `backend/tests/test_detections.py`, `test_ingestion_qa.py` |
+| Testes | `backend/tests/test_common.py`, `test_counts.py`, `test_calendar_metrics.py`, `test_integration_sample_lote1.py`, `helpers_lote1.py` | `backend/tests/test_detections.py`, `test_ingestion_qa.py` |
 | Notebook | `backend/notebooks/02_metrics_lote1.ipynb` | `backend/notebooks/03_metrics_lote2.ipynb` |
 | Relatório | `spec/lotes/lote_1.md` | `spec/lotes/lote_2.md` |
 | Saídas em `metrics/` | `l1_*.parquet`, `_log_lote1.csv` | `l2_*.parquet`, `_log_lote2.csv` |
@@ -293,7 +293,7 @@ Todas as tabelas de saída gravam-se em `metrics/` com o prefixo `l2_`. "Base" =
 
 ## 8. Especificação resumida do Lote 1 (Arthur), para o mesmo nível de rigor
 
-Chave `country, year[, month], instrument, satellite` como no lote 2. Tabelas `l1_*`:
+Chave `country, year[, month], instrument, satellite` como no lote 2. Tabelas `l1_*` (alinhadas com o implementado; relatório em `spec/lotes/lote_1.md`):
 
 | Métrica | Tabela | Colunas | Regra |
 |---|---|---|---|
@@ -303,9 +303,10 @@ Chave `country, year[, month], instrument, satellite` como no lote 2. Tabelas `l
 | QA-02 | `l1_qa02_retention` | `…, n_raw, n_eligible, pct_retained` | `n_eligible/n_raw`; NA se `n_raw==0` |
 | QA-03 | `l1_qa03_cellday_grouped` | `country, year, instrument, satellite, n_eligible, n_cell_days, n_grouped` | `n_grouped = n_eligible − n_cell_days` por satélite |
 | QA-04 | `l1_qa04_redundancy` | `country, year, instrument, sum_cell_days_by_satellite, n_cell_days_union, n_redundant` | `Σ células-dia por satélite − união` |
-| CAL-01/02 | `l1_cal_daily` | `country, date, series, n_cells, unknown_coverage` | células ativas por dia (elegíveis); `series ∈ {modis, viirs, combined}` |
-| CAL-03 | `l1_cal_monthly` | `country, year, month, series, cell_days, partial` | soma de `l1_cal_daily` |
-| CAL-04 | `l1_cal_annual` | `country, year, series, cell_days, partial` | soma de `l1_cal_monthly` |
+| CAL-01/02 | `l1_cal_daily` | `country, date, series, n_cells` | células ativas por dia (elegíveis, só dias com atividade); `series ∈ {modis, viirs, combined}`; `combined` = união |
+| (apoio) | `l1_cal_coverage` | `instrument, date, n_rows_global` | calendário completo `[primeira, última]` de cada sensor; `n_rows_global == 0` ⇒ cobertura desconhecida |
+| CAL-03 | `l1_cal_monthly` | `country, year, month, series, cell_days, partial, n_unknown_days` | soma de `l1_cal_daily`; **denso** (meses a 0 aparecem) dentro do intervalo da série |
+| CAL-04 | `l1_cal_annual` | `country, year, series, cell_days, partial, n_unknown_days` | soma de `l1_cal_monthly`; `partial` se falta algum mês ou algum mês é parcial |
 
 ## 9. Protocolo de testes (obrigatório, igual nos dois lados)
 
