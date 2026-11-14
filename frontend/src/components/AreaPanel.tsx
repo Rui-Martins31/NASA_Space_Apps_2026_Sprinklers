@@ -1,0 +1,213 @@
+import { Slider } from '@base-ui/react/slider'
+import NumberFlow from '@number-flow/react'
+import { ArrowRight, CircleNotch, Info } from '@phosphor-icons/react'
+import clsx from 'clsx'
+import { useEffect, useState, type ReactNode } from 'react'
+import { DATA_START, TODAY, useApp } from '../store'
+import { currentVsMedian, MONTHS, yearTotals } from '../lib/stats'
+
+const RADII = [5, 25, 50, 100, 150, 300]
+
+function minusYears(iso: string, years: number) {
+  const d = new Date(iso)
+  d.setFullYear(d.getFullYear() - years)
+  return d.toISOString().slice(0, 10)
+}
+
+const RANGES = [
+  { label: '12 months', from: () => minusYears(TODAY, 1) },
+  { label: '5 years', from: () => minusYears(TODAY, 5) },
+  { label: 'Full record', from: () => DATA_START },
+]
+
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={clsx(
+        'h-7 rounded-[6px] px-2.5 text-xs transition-colors duration-150',
+        active ? 'bg-ember-500/15 text-ember-300 ring-1 ring-ember-500/40' : 'text-fg-muted ring-1 ring-line hover:bg-ink-700 hover:text-fg',
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+function Label({ children, right }: { children: ReactNode; right?: ReactNode }) {
+  return (
+    <div className="mb-2.5 flex items-baseline justify-between">
+      <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">{children}</span>
+      {right}
+    </div>
+  )
+}
+
+function RadiusInput({ value, onChange }: { value: number; onChange: (km: number) => void }) {
+  const [draft, setDraft] = useState(String(value))
+  useEffect(() => setDraft(String(value)), [value])
+  const commit = () => {
+    const n = Math.round(Number(draft))
+    if (Number.isFinite(n) && n > 0) onChange(Math.min(500, Math.max(1, n)))
+      else setDraft(String(value))
+  }
+  return (
+    <label className="flex items-baseline gap-1 font-mono text-sm text-ember-300">
+      <input
+        type="number"
+        inputMode="numeric"
+        min={1}
+        max={500}
+        step={1}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+        aria-label="Radius in km"
+        className="w-14 rounded-[6px] bg-ink-800 px-1.5 py-0.5 text-right ring-1 ring-line outline-none focus:ring-ember-500/60 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+      />
+      km
+    </label>
+  )
+}
+export default function AreaPanel() {
+  const { place, radiusKm, dateFrom, dateTo, status, calendar } = useApp()
+  const { setRadius, setDates, analyze } = useApp.getState()
+  if (!place) return null
+
+  const kpi = calendar ? currentVsMedian(calendar, dateTo) : null
+  const peak = calendar ? [...yearTotals(calendar)].sort((a, b) => b.count - a.count)[0] : null
+
+  return (
+    <section className="glass mt-3 flex max-h-[calc(100vh-96px)] flex-col overflow-y-auto rounded-[14px] animate-[panel-in_240ms_cubic-bezier(0.23,1,0.32,1)]">
+      {/* Header */}
+      <div className="px-5 pt-5 pb-4">
+        <h1 className="font-display text-[22px] leading-tight font-semibold tracking-tight">{place.label}</h1>
+        <p className="mt-1 text-[13px] text-fg-muted">
+          {place.detail && <>{place.detail} · </>}
+          <span className="font-mono">
+            {Math.abs(place.lat).toFixed(2)}° {place.lat >= 0 ? 'N' : 'S'}, {Math.abs(place.lon).toFixed(2)}° {place.lon >= 0 ? 'E' : 'W'}
+          </span>
+        </p>
+      </div>
+
+      <div className="h-px bg-line" />
+
+      {/* Radius */}
+      <div className="px-5 pt-4">
+        <Label right={<RadiusInput value={radiusKm} onChange={setRadius} />}>Radius</Label>
+        <Slider.Root value={radiusKm} onValueChange={(v) => setRadius(v as number)} min={1} max={500} step={1}>
+          <Slider.Control className="flex h-6 w-full touch-none items-center select-none">
+            <Slider.Track className="h-1 w-full rounded-full bg-ink-700">
+              <Slider.Indicator className="rounded-full bg-ember-500" />
+              <Slider.Thumb
+                aria-label="Radius in km"
+                className="size-4 rounded-full bg-fg shadow-[0_0_0_4px_rgb(255_107_26/0.25)] outline-none focus-visible:shadow-[0_0_0_6px_rgb(255_107_26/0.45)]"
+              />
+            </Slider.Track>
+          </Slider.Control>
+        </Slider.Root>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {RADII.map((r) => (
+            <Chip key={r} active={radiusKm === r} onClick={() => setRadius(r)}>
+              <span className="font-mono">{r}</span> km
+            </Chip>
+          ))}
+        </div>
+      </div>
+
+      {/* Dates */}
+      <div className="px-5 pt-5">
+        <Label>Period</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {(
+            [
+              ['From', dateFrom, (v: string) => setDates(v, dateTo)],
+              ['To', dateTo, (v: string) => setDates(dateFrom, v)],
+            ] as const
+          ).map(([lbl, val, on]) => (
+            <label key={lbl} className="block rounded-[10px] bg-ink-800 px-3 py-2 ring-1 ring-line focus-within:ring-ember-500/60">
+              <span className="block text-[10px] uppercase tracking-[0.08em] text-fg-muted">{lbl}</span>
+              <input
+                type="date"
+                value={val}
+                min={DATA_START}
+                max={TODAY}
+                onChange={(e) => e.target.value && on(e.target.value)}
+                className="w-full bg-transparent font-mono text-[13px] text-fg outline-none"
+              />
+            </label>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {RANGES.map((r) => (
+            <Chip key={r.label} active={dateFrom === r.from() && dateTo === TODAY} onClick={() => setDates(r.from(), TODAY)}>
+              {r.label}
+            </Chip>
+          ))}
+        </div>
+      </div>
+
+      {/* Action */}
+      <div className="px-5 pt-5 pb-5">
+        <button
+          onClick={analyze}
+          disabled={status === 'loading' || dateFrom > dateTo}
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-ember-500 font-medium text-ink-950 transition-[transform,background-color] duration-150 hover:bg-[#ff7d36] active:scale-[0.98] disabled:opacity-60"
+        >
+          {status === 'loading' ? (
+            <>
+              <CircleNotch size={18} className="animate-spin" /> Analyzing…
+            </>
+          ) : (
+            <>
+              {status === 'ready' ? 'Update analysis' : 'Analyze area'} <ArrowRight size={16} weight="bold" />
+            </>
+          )}
+        </button>
+        {dateFrom > dateTo && <p className="mt-2 text-xs text-ember-300">The start date is after the end date.</p>}
+      </div>
+
+      {/* Quick results */}
+      {kpi && (
+        <>
+          <div className="h-px bg-line" />
+          <div className="grid grid-cols-2 gap-px bg-line">
+            <div className="bg-ink-900 px-5 py-4">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-fg-muted">
+                {MONTHS[kpi.month - 1]} {kpi.year}
+              </div>
+              <NumberFlow value={kpi.count} className="font-mono text-[26px] font-medium" />
+              <div className="text-xs text-fg-muted">{kpi.partial ? 'hotspots so far' : 'hotspots'}</div>
+            </div>
+            <div className="bg-ink-900 px-5 py-4">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-fg-muted">vs median{kpi.partial && ' to date'}</div>
+              <NumberFlow
+                value={Math.round(kpi.pct)}
+                prefix={kpi.pct > 0 ? '+' : ''}
+                suffix="%"
+                className={clsx('font-mono text-[26px] font-medium', kpi.pct > 15 ? 'text-ember-300' : kpi.pct < -15 ? 'text-cool-400' : 'text-fg')}
+              />
+              <div className="text-xs text-fg-muted">
+                median <span className="font-mono">{Math.round(kpi.median)}</span>
+              </div>
+            </div>
+          </div>
+          {peak && (
+            <div className="px-5 py-3 text-xs text-fg-muted">
+              Most active year in this period: <span className="font-mono text-fg">{peak.year}</span> (
+              <span className="font-mono">{peak.count.toLocaleString('en')}</span> hotspots)
+            </div>
+          )}
+        </>
+      )}
+
+      <div className="mx-5 mb-5 flex gap-2 rounded-[10px] bg-ink-800 p-3 text-xs leading-relaxed text-fg-muted ring-1 ring-line">
+        <Info size={16} className="mt-px shrink-0" />
+        <span>
+          MODIS (2000→) and VIIRS (2012→) hotspots, harmonized to VIIRS-equivalent counts so the sensor does not matter.
+        </span>
+      </div>
+    </section>
+  )
+}
