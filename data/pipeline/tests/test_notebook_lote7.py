@@ -85,7 +85,7 @@ def test_actual_notebook_roundtrip_resume_and_input_errors(tmp_path, empty):
             assert_frame_equal(actual.astype(text), expected)
         if not empty:
             assert namespace["tables"]["l7_har08_mae"].mae_adjusted.tolist() == [0.0, 0.0]
-            assert namespace["tables"]["l7_har12_residual_step"].status.eq("not_applicable").all()
+            assert namespace["tables"]["l7_har12_residual_step"].status.eq("requires_snpp_inputs").all()
             grids = namespace["tables"]["l7_har13_grid_sensitivity"]
             grid = grids.loc[grids.country.eq("Portugal")].set_index("variant")
             assert grid.loc["grid_0.1", "sum_modis"] == 24

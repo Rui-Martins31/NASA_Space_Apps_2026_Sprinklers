@@ -9,10 +9,11 @@ The shared methodology, manifests and code of other batches are preserved.
 
 HAR-08 through HAR-11 implement held-out errors using L1 monthly counts and
 the supplied L6 factors. HAR-13 and HAR-14 implement grid and confidence
-sensitivity with recalculated counts. HAR-12 is an applicability report for
-the documented current sensor inventory. It has no numerical step estimate.
-The methodology marks it for review because the dataset lacks the S-NPP 2012
-transition. No alternative transition is inferred.
+sensitivity with recalculated counts. HAR-12 now supports a numerical
+segmented regression with explicitly supplied S-NPP monthly data and its own
+calibration factors. Calls without those isolated inputs report
+`requires_snpp_inputs`. This extends the initial applicability-only result
+after the user added S-NPP archives.
 
 All new source, tests and documentation are in English. Work uses the shared
 `metricas-pipeline` branch and the existing L1 and L6 public interfaces.
@@ -52,11 +53,13 @@ months only. `modis_adjusted = modis * factor_used`; signed errors are
 prediction minus VIIRS. Factor input requires `country, factor_used,
 uses_global_fallback`, accepting the full L6 factor table as well.
 
-The HAR-12 applicability columns are `country, scope, status, reason,
-transition_year, step_raw, step_adjusted`. For each existing country and `ALL`,
-`status = not_applicable`, with null year and step estimates and an explicit
-reason. This function reports the documented inventory limitation and does
-not fit a segmented regression.
+The leading HAR-12 columns are `country, scope, status, reason,
+transition_year, step_raw, step_adjusted`. Diagnostics append `reference_sensor,
+factor_used, uses_global_fallback, step_se_raw, step_se_adjusted, n_months,
+n_pre_months, n_post_months, n_pre_years, n_post_years, residual_dof`.
+Numerical fitting requires explicit `reference_sensor='viirs-snpp'` and
+separate S-NPP factors. Other calls return `requires_snpp_inputs`, with no
+invented estimate. See the S-NPP execution section below for the model contract.
 
 `build_variant_tables(detections, monthly, variants, cal_start=2018)` is the
 pure annual sensitivity builder. It returns two tables, each with a leading
@@ -149,10 +152,10 @@ variants, year selection, commit, factor digest, output rows and execution
 time. Export is atomic per file. Rerun after an interrupted export and use
 one notebook instance per output directory.
 
-## Validation
+## Initial L7 validation
 
 Before L7, the complete pipeline suite passed with 582 tests and 3 skipped
-real-data tests. L7 adds 71 tests. Full suites completed with **653 passed,
+real-data tests. The initial L7 delivery added 71 tests. Full suites completed with **653 passed,
 3 skipped** on both pandas **2.2.3** and **3.1.1**, using isolated validation
 environments in the system temporary directory.
 
@@ -180,8 +183,8 @@ is complete, with no confirmed code or calculation findings remaining.
 The reviewer independently confirmed 653 passing and 3 skipped tests on pandas
 2.2.3 and 3.1.1. A separate seeded oracle matched 72 sensitivity checks across
 39 common country-months, including global membership, calibration factors,
-fallback and held-out errors. HAR-12 remains an applicability report as
-explicitly documented above.
+fallback and held-out errors. At that checkpoint HAR-12 was an applicability
+report. The S-NPP extension is documented and validated separately below.
 
 Tests include literal arithmetic, zero and unavailable denominators, signed
 bias and deterioration, global factors, missing factors, no calibration/test
@@ -197,13 +200,106 @@ factors, unchanged L1/L6 inputs, reruns, cache reuse, forced recalculation,
 missing-partial recovery, damaged-metadata recovery and missing-input errors.
 Every code cell is checked with `ast.parse`, and saved outputs are empty.
 
+## S-NPP execution and HAR-12 model
+
+The uploaded archive names follow `viirs-snpp_<year>_all_countries.zip`.
+Notebook `01_ingest_harmonize.ipynb` already discovers that pattern recursively.
+Use `SENSORS = {'modis', 'viirs-snpp'}` there to produce the required processed
+files. Its shared source code is preserved.
+
+NASA FIRMS identifies satellite code `N` as Suomi NPP and lists the active-fire
+record from 20 January 2012. The isolated builder accepts that code and explicit
+S-NPP labels, while rejecting NOAA-20 and unknown labels. Partial endpoint
+months remain excluded under the L1 validity convention.
+[NASA FIRMS VIIRS attributes](https://firms.modaps.eosdis.nasa.gov/content/descriptions/FIRMS_VIIRS_Firehotspots.html)
+
+Run `data/pipeline/notebooks/09_har12_snpp.ipynb` after ingest. It reads only
+`modis_<year>.parquet` and `viirs-snpp_<year>.parquet`, uses public L1 functions
+to construct independent monthly tables, and calibrates MODIS to S-NPP with
+L6 `har06_factor`. The calibration defaults remain 2018–2021 with at least
+24 comparable months. NOAA-20 factors are never applied to S-NPP.
+
+The default numerical model uses MODIS before January 2012 and S-NPP from
+January 2012. It selects five calendar years on either side, requires at least
+36 valid months and three represented years on each side, and fits an
+intercept, elapsed-month trend, post-transition level and trend change, and
+eleven calendar-month effects. The adjusted series scales only the MODIS
+pre-transition segment using its separately supplied S-NPP factor. The
+reported step is the post-level coefficient at the configured boundary.
+These defaults were implementation choices based on the requested 2012
+analysis and are configurable in `MODEL_OPTIONS`.
+
+Insufficient samples, an unidentified seasonal design or a missing factor
+produce explicit statuses and null estimates. Actual elapsed calendar months
+are used in the design. Missing years are never replaced with zero activity.
+The screenshot did not show 2016 or 2019, and the notebook logs missing
+processed years rather than assuming the inventory is complete.
+
+`harmonization_snpp.build_sensor_monthly` accepts one sensor-year at a time,
+preserves L1 eligibility and coverage rules, and appends sensor provenance.
+Only years needed for the regression window or calibration are processed.
+The builder rejects multi-year frames to prevent infilling entire absent years.
+
+The isolated outputs are `l7_har12_snpp_monthly.parquet`,
+`l7_har12_snpp_factor.parquet`, `l7_har12_residual_step.parquet`,
+`_params_har12_snpp.json` and `_log_har12_snpp.csv`. They record model settings,
+source-file metadata, missing years and the Git revision. Notebook 08 uses
+these isolated monthly/factor inputs and settings when present, so rerunning
+the ordinary L7 export recomputes the numerical HAR-12 result. Without them,
+it reports `requires_snpp_inputs`.
+
+The shared notebook 02 currently aggregates all completed sensor partials.
+Adding S-NPP to it would change the VIIRS series used by the existing batches.
+This extension therefore builds HAR-12 inputs independently and does not run
+or edit notebook 02. The shared aggregation needs a separately coordinated
+satellite-selection policy before S-NPP is included there.
+
+The Google Drive connector failed to initialize during this session. Archive
+contents and processed data on Drive have not been inspected or executed.
+Inventory observations above come from the user's screenshot.
+
+The extension has 19 transition-model tests, 25 isolated-input tests and two
+notebook integration tests. It adds 43 tests beyond the initial L7 suite,
+because the original three applicability tests are retained in the model suite.
+The complete pipeline passed with **696 passed, 3 skipped** on pandas
+**2.2.3** and **3.1.1**. The skipped tests require real source data.
+
+The synthetic model tests recover known seasonality, pre/post trends and a
+known level step. A constant MODIS/S-NPP example with factor two removes a
+known step. Missing years retain their actual elapsed-month positions.
+An independent exact-Fraction normal-equation calculation verifies the OLS
+step coefficient and its model-based standard error.
+
+The isolated notebook integration test builds complete raw coverage but fixed
+eligible monthly activity, discovers the missing 2016/2019 S-NPP years, obtains
+the expected factor two, recovers a raw step of eight and an adjusted step of
+zero, and confirms that existing NOAA-20 factor files retain their bytes.
+It then executes notebook 08 with the resulting S-NPP sidecars and confirms
+the numerical result is recomputed. A simulated interrupted export invalidates
+the parameters marker until a complete input bundle is published. That test
+passed again on both pandas versions after the export safeguard was added.
+
+The existing isolated mutation harness passed its 44-test baseline and detected
+**9/9 additional mutations**. These changed the step coefficient, pre-segment
+scaling, OLS standard-error denominator, transition boundary, actual calendar
+spacing, validity filter, satellite isolation, single-year input guard and
+confidence eligibility. A surviving confidence mutation in the first run
+exposed a test gap involving coincident cells. Two explicit distinct-cell
+tests were added, and the final complete mutation run detected every case.
+
+The requested independent review agent could not run because its runtime hit
+the account usage limit. The primary agent completed a direct review of the
+model, source isolation, export behavior, tests and documentation. An
+independent review of this S-NPP extension remains outstanding. The earlier
+independent L7 review above applies to the initial delivery, not this extension.
+
 ## Limitations
 
-HAR-12 has no numerical regression implementation for the current data. It
-explicitly reports the methodological limitation until an alternative
-transition and suitable series are defined. This choice follows the shared
-methodology's review status and is recorded here because L7 has no detailed
-shared contract yet.
+HAR-12 estimates depend on the explicitly configured splice and observation
+window. OLS standard errors are conditional on supplied factors and do not
+adjust for serial correlation or factor-estimation uncertainty. The global
+series sums valid country observations and may be affected by changing country
+coverage. It is a descriptive model, not a causal attribution of a sensor effect.
 
 Colab mounting, private repository authentication and execution against real
 datasets have not been exercised locally. No real datasets were read or
