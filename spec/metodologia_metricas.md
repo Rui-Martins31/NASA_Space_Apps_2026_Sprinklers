@@ -1,7 +1,7 @@
 # Metodologia de métricas — MODIS + VIIRS (FIRMS)
 
 Documento de orientação e **contrato de trabalho** para implementar as métricas de `spec/metricas_modis_viirs.csv`.
-Foi escrito para que duas pessoas, cada uma com o seu Claude, trabalhem **em paralelo e sem ver o trabalho uma da outra** até o Arthur fazer o merge. Por isso:
+Foi escrito para que duas pessoas, cada uma com o seu Claude, trabalhem **em paralelo e sem ver o trabalho uma da outra** até os dois lados estarem em `main`. Por isso:
 
 - cada lote tem os seus ficheiros, nomes e tabelas de saída, e **ninguém edita ficheiros de outro lote**;
 - as regras de cálculo, a qualidade dos testes e a forma de raciocinar são as mesmas nos dois lados;
@@ -220,7 +220,7 @@ Tabela gerada a partir do CSV. A coluna **Adequação** é uma triagem inicial (
 | Notebook | `backend/notebooks/02_metrics_lote1.ipynb` | `backend/notebooks/03_metrics_lote2.ipynb` |
 | Relatório | `spec/lotes/lote_1.md` | `spec/lotes/lote_2.md` |
 | Saídas em `metrics/` | `l1_*.parquet`, `_log_lote1.csv` | `l2_*.parquet`, `_log_lote2.csv` |
-| Branch | `lote1-metricas` | `lote2-metricas` |
+| Onde se faz push | `main` | `main` |
 
 **Ficheiros que ninguém edita** (evitam conflitos de merge): `requirements.txt`, `.gitignore`, `data/README.md`, `data/MANIFEST.md`, `backend/notebooks/01_ingest_harmonize.ipynb`, `backend/notebooks/02_metrics.ipynb`, `spec/metricas_modis_viirs.csv`, este documento, `backend/tests/conftest.py`, `backend/pytest.ini`. O Arthur atualiza os partilhados depois do merge. `backend/metrics/__init__.py` pode ser criado por ambos **vazio** (ficheiros iguais fundem sem conflito).
 
@@ -229,6 +229,7 @@ Regras adicionais:
 - **Sem `conftest.py` nem `pytest.ini` nem dependências novas.** Cada ficheiro de teste constrói os seus próprios dados com um auxiliar local (`helpers`) no próprio ficheiro ou em `backend/tests/helpers_lote<N>.py`. Só `pandas`, `numpy`, `pytest` (instale `pytest` à mão se faltar).
 - **Como correr os testes:** `cd backend && python -m pytest tests -q`. Assim `import metrics...` funciona sem configuração.
 - Não use `calendar.py` como nome de módulo (colide com a biblioteca padrão); por isso é `calendar_metrics.py`.
+- **Push direto para `main`, sem branches:** os dois lotes fazem push para `main`. Como os ficheiros são disjuntos, não há conflitos se cada um respeitar a lista acima. Regras: (1) **antes de cada push**, `git pull --rebase origin main`; (2) cada commit só contém ficheiros do **seu** lote (`git status` antes de `git add`, e nunca `git add -A` ou `git add .`); (3) **nunca** `git push --force` nem reescrever histórico; (4) se o `pull --rebase` der conflito, **pare e avise**: significa que alguém tocou num ficheiro que não era seu; não resolva às cegas.
 - **Nunca commitar dados** (`data/` está no `.gitignore`).
 - Commits curtos e descritivos (skill `/commit-message`); antes de dizer "feito", correr a skill `/review-gate`. As skills estão em `.claude/skills/`.
 - No fim, escrever `spec/lotes/lote_<N>.md`: métricas feitas, decisões e desvios, nº de testes, como correr, limitações. É o que o Arthur lê antes do merge.
@@ -357,4 +358,4 @@ O VIIRS é pesado (cerca de 3 GB comprimidos no raw): processe ano a ano, leia p
 
 **Prompt-modelo** (para colar no Claude do colega)
 
-> Vais implementar o **Lote 2** de métricas do projeto Sprinklers. Lê `spec/metodologia_metricas.md` inteiro uma vez. Segue **exatamente** a secção 7 (especificação), a secção 3 (convenções congeladas), a secção 6 (ficheiros reservados: só podes criar `backend/metrics/detections.py`, `backend/metrics/ingestion_qa.py`, `backend/metrics/__init__.py` vazio, `backend/tests/test_detections.py`, `backend/tests/test_ingestion_qa.py`, `backend/notebooks/03_metrics_lote2.ipynb` e `spec/lotes/lote_2.md`) e o protocolo de testes da secção 9. Trabalha na branch `lote2-metricas`. Para cada métrica, lê só a sua linha em `spec/metricas_modis_viirs.csv`. Escreve primeiro os testes (exemplo calculado à mão), depois a função. Não leias nem descarregues dados reais. Não instales nem alteres dependências partilhadas. Quando houver ambiguidade, aplica o que o documento diz e regista a dúvida no relatório do lote. No fim corre `/review-gate` e apresenta o resumo do relatório.
+> Vais implementar o **Lote 2** de métricas do projeto Sprinklers. Lê `spec/metodologia_metricas.md` inteiro uma vez. Segue **exatamente** a secção 7 (especificação), a secção 3 (convenções congeladas), a secção 6 (ficheiros reservados: só podes criar `backend/metrics/detections.py`, `backend/metrics/ingestion_qa.py`, `backend/metrics/__init__.py` vazio, `backend/tests/test_detections.py`, `backend/tests/test_ingestion_qa.py`, `backend/notebooks/03_metrics_lote2.ipynb` e `spec/lotes/lote_2.md`) e o protocolo de testes da secção 9. Trabalha direto em `main`: antes de cada push faz `git pull --rebase origin main`, nunca uses `git add -A`/`git add .` (adiciona só os ficheiros do teu lote) e nunca faças `push --force`; se houver conflito no rebase, pára e avisa. Para cada métrica, lê só a sua linha em `spec/metricas_modis_viirs.csv`. Escreve primeiro os testes (exemplo calculado à mão), depois a função. Não leias nem descarregues dados reais. Não instales nem alteres dependências partilhadas. Quando houver ambiguidade, aplica o que o documento diz e regista a dúvida no relatório do lote. No fim corre `/review-gate` e apresenta o resumo do relatório.
