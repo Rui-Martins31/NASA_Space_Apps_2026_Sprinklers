@@ -52,7 +52,8 @@ curl -X POST http://127.0.0.1:8080/api/calendar -H 'Content-Type: application/js
 curl -o hotspots.csv 'http://127.0.0.1:8080/api/hotspots.csv?lat=39.5&lon=-8.0&radius=50&date_time_from=2020-01-01T00:00:00&date_time_to=2021-12-31T23:59:59'
 ```
 
-Errors return status `400` with `{"error": "<message>"}`.
+Errors are JSON, `{"error": "<message>"}`: `400` for invalid parameters, `404` for an
+unknown endpoint (e.g. `/api/alle`), `405` for the wrong method (e.g. `GET /api/calendar`).
 
 ## Connecting the database
 

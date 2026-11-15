@@ -118,6 +118,21 @@ class ApiTest(unittest.TestCase):
             self.assertEqual(response.status_code, 400)
             self.assertIn("error", response.get_json())
 
+    def test_unknown_endpoint_returns_json_404(self):
+        for response in (self.post("alle"),
+                         self.client.get("/api/alle"),
+                         self.client.post("/nothing/here", json={})):
+            self.assertEqual(response.status_code, 404)
+            self.assertEqual(response.mimetype, "application/json")
+            self.assertEqual(response.headers["Access-Control-Allow-Origin"], "*")
+        self.assertEqual(self.post("alle").get_json(), {"error": "unknown endpoint /api/alle"})
+
+    def test_wrong_method_returns_json_405(self):
+        response = self.client.get("/api/calendar")
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.headers["Allow"], "POST")
+        self.assertEqual(response.get_json(), {"error": "GET is not allowed on /api/calendar; use POST"})
+
 
 class AntimeridianTest(unittest.TestCase):
     """A circle over the 180° meridian (Fiji) must get chunks from both sides."""
