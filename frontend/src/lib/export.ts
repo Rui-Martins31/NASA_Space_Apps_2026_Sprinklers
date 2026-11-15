@@ -1,7 +1,7 @@
 // Chart export (PNG / SVG) and the printable PDF report (W10).
 // Every exported file carries the area, the period, the generation date and the source.
 import type { CalendarEntry } from '../types'
-import { calendarScale, downloadBlob, fmt, monthlyMeans, slug, summary, yearTotals } from './stats'
+import { calendarScale, downloadBlob, fmt, referenceAnnual, slug, summary, yearTotals } from './stats'
 import { monthName, translate, type Lang } from '../i18n'
 
 export interface ExportMeta {
@@ -42,12 +42,17 @@ export function frameSvg(inner: string, w: number, h: number, m: ExportMeta) {
 }
 
 /** The burning calendar drawn as SVG (same colours and scale as on screen). */
-export function calendarSvg(cal: CalendarEntry[], kind: 'absolute' | 'relative' | 'anomaly', lang: Lang, dataStart: string) {
-  const scale = calendarScale(cal, kind)
+export function calendarSvg(
+  cal: CalendarEntry[],
+  kind: 'absolute' | 'relative' | 'anomaly',
+  lang: Lang,
+  dataStart: string,
+  means: number[],
+) {
+  const scale = calendarScale(cal, kind, means)
   const byKey = new Map(cal.map((c) => [`${c.year}-${c.month}`, c]))
   const years = [...new Set(cal.map((c) => c.year))].sort((a, b) => b - a)
   const totals = new Map(yearTotals(cal).map((y) => [y.year, y.count]))
-  const means = monthlyMeans(cal)
   const startY = Number(dataStart.slice(0, 4))
   const startM = Number(dataStart.slice(5, 7))
   const cw = 46
@@ -97,9 +102,9 @@ export function calendarSvg(cal: CalendarEntry[], kind: 'absolute' | 'relative' 
 }
 
 /** Yearly totals with the historical mean as a dashed line (used in the report). */
-export function yearlySvg(cal: CalendarEntry[], lang: Lang) {
+export function yearlySvg(cal: CalendarEntry[], lang: Lang, means: number[]) {
   const years = yearTotals(cal)
-  const { annualAvg } = summary(cal)
+  const annualAvg = referenceAnnual(means)
   const w = 640
   const h = 200
   const max = Math.max(1, ...years.map((y) => y.count))
@@ -165,14 +170,14 @@ export function openReport(
   m: ExportMeta,
   kind: 'absolute' | 'relative' | 'anomaly',
   dataStart: string,
+  means: number[],
   win: Window | null = window.open('', '_blank'),
 ) {
   const t = (k: Parameters<typeof translate>[1], v?: Record<string, string | number>) => translate(m.lang, k, v)
   const s = summary(cal)
-  const calSvg = calendarSvg(cal, kind, m.lang, dataStart)
-  const yearly = yearlySvg(cal, m.lang)
+  const calSvg = calendarSvg(cal, kind, m.lang, dataStart, means)
+  const yearly = yearlySvg(cal, m.lang, means)
   const peak = s.peakMonth ? `${monthName(s.peakMonth.month, m.lang, 'long')} ${s.peakMonth.year} (${fmt(s.peakMonth.count)})` : '—'
-  const means = monthlyMeans(cal)
 
   const html = `<!doctype html><html lang="${m.lang}"><head><meta charset="utf-8"><title>${esc(t('report.title'))} – ${esc(m.place)}</title>
 <style>

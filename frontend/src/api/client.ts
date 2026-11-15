@@ -44,3 +44,29 @@ export async function fetchFeature(feature: Feature, query: AreaQuery): Promise<
 }
 
 export const usingMock = USE_MOCK
+
+/**
+ * Full hotspots CSV from GET /api/hotspots.csv (every hotspot, no max_points).
+ * Returns the CSV text; the caller saves it.
+ */
+export async function fetchHotspotsCsv(query: AreaQuery): Promise<string> {
+  const params = new URLSearchParams({
+    lat: String(query.lat),
+    lon: String(query.lon),
+    radius: String(query.radiusKm),
+    date_time_from: `${query.dateFrom}T00:00:00`,
+    date_time_to: `${query.dateTo}T23:59:59`,
+  })
+  const res = await fetch(`/api/hotspots.csv?${params}`)
+  if (!res.ok) {
+    let message = `Server error (${res.status})`
+    try {
+      const body = await res.json()
+      if (body?.error) message = body.error
+    } catch {
+      /* not JSON */
+    }
+    throw new Error(message)
+  }
+  return res.text()
+}

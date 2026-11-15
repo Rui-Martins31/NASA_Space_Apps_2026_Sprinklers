@@ -20,8 +20,8 @@ import { toast } from 'sonner'
 import { DATA_START, useApp } from '../store'
 import { useT } from '../i18n'
 import { openReport } from '../lib/export'
-import { downloadCsv, hotspotsFilename } from '../lib/stats'
-import { fetchFeature, MAX_HOTSPOTS } from '../api/client'
+import { downloadBlob, downloadCsv, hotspotsFilename, referenceMeans } from '../lib/stats'
+import { fetchFeature, fetchHotspotsCsv, MAX_HOTSPOTS, usingMock } from '../api/client'
 import type { View } from '../types'
 
 interface Item {
@@ -68,21 +68,22 @@ export default function AnalysesMenu() {
   async function exportHotspots() {
     if (!place) return
     const id = toast.loading(t('toast.csvPreparing'))
+    const query = { lat: place.lat, lon: place.lon, radiusKm, dateFrom, dateTo }
+    const filename = hotspotsFilename(place.label, dateFrom, dateTo)
     try {
-      const res = await fetchFeature('hotspots', {
-        lat: place.lat,
-        lon: place.lon,
-        radiusKm,
-        dateFrom,
-        dateTo,
-        maxPoints: MAX_HOTSPOTS,
-      })
-      const rows = res.hotspots ?? []
-      downloadCsv(hotspotsFilename(place.label, dateFrom, dateTo), rows)
-      toast.success(t('toast.csvDone', { count: rows.length.toLocaleString('en') }), {
-        id,
-        description: rows.length >= MAX_HOTSPOTS ? t('toast.csvCapped', { max: MAX_HOTSPOTS.toLocaleString('en') }) : undefined,
-      })
+      if (usingMock) {
+        // fake data: build the CSV here
+        const res = await fetchFeature('hotspots', { ...query, maxPoints: MAX_HOTSPOTS })
+        const rows = res.hotspots ?? []
+        downloadCsv(filename, rows)
+        toast.success(t('toast.csvDone', { count: rows.length.toLocaleString('en') }), { id })
+        return
+      }
+      // real backend: complete CSV from GET /api/hotspots.csv (no point limit)
+      const text = await fetchHotspotsCsv(query)
+      const count = Math.max(0, text.trimEnd().split('\n').length - 1)
+      downloadBlob(filename, new Blob(['\ufeff' + text], { type: 'text/csv;charset=utf-8' }))
+      toast.success(t('toast.csvDone', { count: count.toLocaleString('en') }), { id })
     } catch (e) {
       toast.error(t('toast.csvFailed'), { id, description: (e as Error).message })
     }
@@ -112,7 +113,8 @@ export default function AnalysesMenu() {
     if (useApp.getState().status !== 'ready') await analyze()
     const cal = useApp.getState().calendar
     if (!cal) return win.close()
-    openReport(cal, { title: t('report.title'), place: place.label, radiusKm, dateFrom, dateTo, lang }, calendarScale, DATA_START, win)
+    const means = referenceMeans(useApp.getState().anomalies, cal).means
+    openReport(cal, { title: t('report.title'), place: place.label, radiusKm, dateFrom, dateTo, lang }, calendarScale, DATA_START, means, win)
   }
 
   const analyses: Item[] = [

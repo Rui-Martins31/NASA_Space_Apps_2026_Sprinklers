@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { fmt, monthlyMeans, seasonalProfile, summary, topMonths, yearlyAnomalies, yearTotals } from '../../lib/stats'
+import { fmt, referenceAnnual, referenceMeans, seasonalProfile, topMonths, yearlyAnomalies, yearTotals } from '../../lib/stats'
 import { monthName, useT } from '../../i18n'
 import { useApp } from '../../store'
 import type { CalendarEntry } from '../../types'
@@ -61,14 +61,15 @@ export function TrendView({ calendar }: { calendar: CalendarEntry[] }) {
   const t = useT()
   const lang = useApp((s) => s.lang)
   const [mode, setMode] = useState<'annual' | 'monthly'>('annual')
-  const { annualAvg } = summary(calendar)
+  const anomalies = useApp((s) => s.anomalies)
+  const { means } = referenceMeans(anomalies, calendar)
+  const annualAvg = referenceAnnual(means)
   const years = yearTotals(calendar)
-  const means = monthlyMeans(calendar)
   const monthly = useMemo(
     () => calendar.map((c) => ({ label: `${monthName(c.month, lang)} ${c.year}`, count: c.count, mean: Math.round(means[c.month - 1] * 10) / 10 })),
-    [calendar, lang], // eslint-disable-line react-hooks/exhaustive-deps
+    [calendar, lang, anomalies], // eslint-disable-line react-hooks/exhaustive-deps
   )
-  const anoms = yearlyAnomalies(calendar)
+  const anoms = yearlyAnomalies(calendar, means)
 
   return (
     <div className="space-y-6">
@@ -159,7 +160,8 @@ export function SeasonalChart({ calendar }: { calendar: CalendarEntry[] }) {
   const lang = useApp((s) => s.lang)
   const years = [...new Set(calendar.map((c) => c.year))].sort((a, b) => b - a)
   const [year, setYear] = useState(years[0])
-  const data = seasonalProfile(calendar, year).map((d) => ({ ...d, name: monthName(d.month, lang) }))
+  const anomalies = useApp((s) => s.anomalies)
+  const data = seasonalProfile(calendar, year, referenceMeans(anomalies, calendar).means).map((d) => ({ ...d, name: monthName(d.month, lang) }))
   const above = data.filter((d) => d.above).map((d) => d.name)
 
   return (

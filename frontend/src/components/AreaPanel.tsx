@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { DATA_START, TODAY, useApp } from '../store'
 import DatePicker from './DatePicker'
 import EmptyState, { totalHotspots } from './EmptyState'
-import { currentVsMean, fmt, summary } from '../lib/stats'
+import { currentVsMean, fmt, referenceMeans, summary } from '../lib/stats'
 import { monthName, useT, type TKey } from '../i18n'
 
 const RADII = [5, 25, 50, 100, 150, 300]
@@ -85,12 +85,12 @@ function Card({ label, children, sub }: { label: ReactNode; children: ReactNode;
 
 export default function AreaPanel() {
   const t = useT()
-  const { place, radiusKm, dateFrom, dateTo, status, calendar, lang } = useApp()
+  const { place, radiusKm, dateFrom, dateTo, status, calendar, anomalies, lang } = useApp()
   const { setRadius, setDates, analyze } = useApp.getState()
   if (!place) return null
 
   const empty = status === 'ready' && totalHotspots(calendar) === 0
-  const kpi = calendar && !empty ? currentVsMean(calendar, dateTo) : null
+  const kpi = calendar && !empty ? currentVsMean(calendar, dateTo, referenceMeans(anomalies, calendar).means) : null
   const sum = calendar && !empty ? summary(calendar) : null
 
   return (

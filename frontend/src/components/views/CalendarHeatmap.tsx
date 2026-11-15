@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import { calendarScale, fmt, monthFraction, monthlyMeans, monthStats, summary, yearTotals } from '../../lib/stats'
+import { calendarScale, fmt, monthFraction, referenceMeans, summary, yearTotals } from '../../lib/stats'
 import { DATA_START, useApp, type CalendarScale } from '../../store'
 import { monthName, useT } from '../../i18n'
 import type { CalendarEntry } from '../../types'
@@ -19,6 +19,7 @@ export default function CalendarHeatmap({ calendar }: { calendar: CalendarEntry[
   const setKind = useApp((s) => s.setCalendarScale)
   const dateTo = useApp((s) => s.dateTo)
   const filtered = useApp((s) => s.hotspotWindow)
+  const anomalies = useApp((s) => s.anomalies)
   const [hover, setHover] = useState<CalendarEntry | null>(null)
 
   const { years, byKey, totals, means, scale, peak, last, peakYear } = useMemo(() => {
@@ -26,17 +27,18 @@ export default function CalendarHeatmap({ calendar }: { calendar: CalendarEntry[
     const years = [...new Set(calendar.map((c) => c.year))].sort((a, b) => b - a) // newest on top
     const totals = new Map(yearTotals(calendar).map((y) => [y.year, y.count]))
     const sum = summary(calendar)
+    const { means } = referenceMeans(anomalies, calendar)
     return {
       years,
       byKey,
       totals,
-      means: monthlyMeans(calendar),
-      scale: calendarScale(calendar, kind),
+      means,
+      scale: calendarScale(calendar, kind, means),
       peak: sum.peakMonth,
       peakYear: sum.peakYear?.year,
       last: calendar[calendar.length - 1],
     }
-  }, [calendar, kind])
+  }, [calendar, kind, anomalies])
 
   const startY = Number(DATA_START.slice(0, 4))
   const startM = Number(DATA_START.slice(5, 7))
@@ -44,7 +46,7 @@ export default function CalendarHeatmap({ calendar }: { calendar: CalendarEntry[
   // Readout (C3): count and difference from the mean of the same month
   const info = hover ?? last
   const frac = info ? monthFraction(info, dateTo) : 1
-  const mean = info ? monthStats(calendar, info.month, info.year).mean * frac : 0
+  const mean = info ? means[info.month - 1] * frac : 0
   const diff = info ? info.count - mean : 0
   const pct = mean > 0 ? (diff / mean) * 100 : null
 

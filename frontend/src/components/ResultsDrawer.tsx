@@ -9,7 +9,7 @@ import EmptyState, { totalHotspots } from './EmptyState'
 import { AboutView, RankingView, SeasonalChart, TrendView } from './views/Charts'
 import MetricsView from './views/MetricsView'
 import { METRICS, metricName } from '../lib/metricsCatalog'
-import { downloadCsv, slug } from '../lib/stats'
+import { downloadCsv, referenceMeans, slug } from '../lib/stats'
 import { calendarSvg, chartFromDom, downloadPng, downloadSvg, exportFilename, frameSvg, type ExportMeta } from '../lib/export'
 import type { View } from '../types'
 
@@ -45,7 +45,7 @@ export default function ResultsDrawer() {
     const meta: ExportMeta = { title: t(TITLE[view]), place: place.label, radiusKm, dateFrom, dateTo, lang }
     const chart =
       view === 'calendar'
-        ? calendarSvg(calendar, calendarScale, lang, DATA_START)
+        ? calendarSvg(calendar, calendarScale, lang, DATA_START, referenceMeans(useApp.getState().anomalies, calendar).means)
         : chartFromDom(bodyRef.current?.querySelector('[data-export-main]') as HTMLElement | null)
     if (!chart) return
     const svg = frameSvg(chart.svg, chart.w, chart.h, meta)

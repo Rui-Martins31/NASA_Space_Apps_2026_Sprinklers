@@ -28,10 +28,30 @@ export function monthStats(cal: CalendarEntry[], month: number, excludeYear?: nu
   return { mean, median: quantile(vals, 0.5), p10: quantile(vals, 0.1), p90: quantile(vals, 0.9), n: vals.length }
 }
 
-/** Mean of each month (1..12) over all years in the calendar. */
+/** Mean of each month (1..12) over all years in the calendar (fallback only). */
 export function monthlyMeans(cal: CalendarEntry[]) {
   return Array.from({ length: 12 }, (_, i) => monthStats(cal, i + 1).mean)
 }
+
+/**
+ * Reference mean of each calendar month (index 0 = January), as computed by the
+ * pipeline and sent by the backend in anomalies[].mean. The frontend does not
+ * compute its own means; it only falls back to the calendar when the backend
+ * sent no anomalies (e.g. an old backend).
+ */
+export function referenceMeans(anomalies: { month: number; mean: number }[] | null, cal: CalendarEntry[]) {
+  if (anomalies?.length) {
+    const means: (number | undefined)[] = Array(12).fill(undefined)
+    for (const a of anomalies) if (means[a.month - 1] === undefined) means[a.month - 1] = a.mean
+    if (means.every((m) => m !== undefined)) return { means: means as number[], fromPipeline: true }
+    const fallback = monthlyMeans(cal)
+    return { means: means.map((m, i) => m ?? fallback[i]), fromPipeline: true }
+  }
+  return { means: monthlyMeans(cal), fromPipeline: false }
+}
+
+/** Expected yearly total = sum of the 12 monthly reference means. */
+export const referenceAnnual = (means: number[]) => means.reduce((a, b) => a + b, 0)
 
 /** Share of the month covered when the period ends mid-month (e.g. 14 Nov → 14/30). */
 export function monthFraction(entry: { year: number; month: number }, dateTo: string) {
@@ -42,12 +62,11 @@ export function monthFraction(entry: { year: number; month: number }, dateTo: st
 
 /** Compares the latest month with the same month in other years. If the
  *  month is not over yet, the mean is scaled to the days covered so far. */
-export function currentVsMean(cal: CalendarEntry[], dateTo: string) {
+export function currentVsMean(cal: CalendarEntry[], dateTo: string, means: number[]) {
   const cur = currentEntry(cal)
   if (!cur) return null
   const frac = monthFraction(cur, dateTo)
-  const s = monthStats(cal, cur.month, cur.year)
-  const mean = s.mean * frac
+  const mean = means[cur.month - 1] * frac
   const pct = mean > 0 ? ((cur.count - mean) / mean) * 100 : 0
   return { ...cur, mean, diff: cur.count - mean, pct, partial: frac < 1 }
 }
@@ -78,14 +97,14 @@ export function topMonths(cal: CalendarEntry[], n = 5) {
 }
 
 /** Per-month profile: mean and P10–P90 band over all years, plus one chosen year. */
-export function seasonalProfile(cal: CalendarEntry[], year: number) {
+export function seasonalProfile(cal: CalendarEntry[], year: number, means: number[]) {
   return Array.from({ length: 12 }, (_, i) => {
     const s = monthStats(cal, i + 1, year)
     const chosen = cal.find((c) => c.year === year && c.month === i + 1)
     const value = chosen ? chosen.count : null
     return {
       month: i + 1,
-      mean: Math.round(s.mean * 10) / 10,
+      mean: Math.round(means[i] * 10) / 10,
       band: [Math.round(s.p10), Math.round(s.p90)] as [number, number],
       value,
       above: value !== null && s.n > 0 && value > s.p90,
@@ -93,13 +112,10 @@ export function seasonalProfile(cal: CalendarEntry[], year: number) {
   })
 }
 
-/** Yearly total minus the mean of all complete years. */
-export function yearlyAnomalies(cal: CalendarEntry[]) {
-  const years = yearTotals(cal)
-  const complete = years.filter((y) => y.complete)
-  const basis = complete.length ? complete : years
-  const mean = basis.length ? basis.reduce((a, y) => a + y.count, 0) / basis.length : 0
-  return { mean, rows: years.map((y) => ({ ...y, anomaly: Math.round(y.count - mean) })) }
+/** Yearly total minus the reference yearly total (sum of the pipeline's monthly means). */
+export function yearlyAnomalies(cal: CalendarEntry[], means: number[]) {
+  const mean = referenceAnnual(means)
+  return { mean, rows: yearTotals(cal).map((y) => ({ ...y, anomaly: Math.round(y.count - mean) })) }
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +142,7 @@ const DIV = ['#6aa8ff', '#3f74c0', '#2a4566', '#2a2f38', '#6e3420', '#b5501d', '
 export const fmt = (n: number) => Math.round(n).toLocaleString('en')
 const fmtSigned = (n: number) => `${n > 0 ? '+' : ''}${fmt(n)}`
 
-export function calendarScale(cal: CalendarEntry[], kind: 'absolute' | 'relative' | 'anomaly'): CalendarScaleInfo {
+export function calendarScale(cal: CalendarEntry[], kind: 'absolute' | 'relative' | 'anomaly', means: number[]): CalendarScaleInfo {
   const max = Math.max(1, ...cal.map((c) => c.count))
 
   if (kind === 'absolute') {
@@ -166,8 +182,7 @@ export function calendarScale(cal: CalendarEntry[], kind: 'absolute' | 'relative
     }
   }
 
-  // anomaly: count minus the mean of the same month, symmetric classes
-  const means = monthlyMeans(cal)
+  // anomaly: count minus the reference mean of the same month, symmetric classes
   const dev = (c: CalendarEntry) => c.count - means[c.month - 1]
   const lim = Math.max(1, ...cal.map((c) => Math.abs(dev(c))))
   const edges = [-1, -0.6, -0.25, -0.05, 0.05, 0.25, 0.6, 1].map((e) => e * lim)
