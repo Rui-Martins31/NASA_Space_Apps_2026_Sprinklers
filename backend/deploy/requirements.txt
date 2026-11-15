@@ -1,0 +1,3 @@
+# Production only: the backend's own requirements plus the server that runs it.
+-r ../requirements.txt
+gunicorn>=23.0

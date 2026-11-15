@@ -1,0 +1,16 @@
+# Files deploy.sh does NOT upload to Cloud Build (paths relative to backend/).
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+
+# Secrets: never uploaded, even if someone saves one into backend/ by mistake.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*credentials*.json
+*service-account*.json
+*service_account*.json
