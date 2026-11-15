@@ -1,9 +1,16 @@
-"""HAR-12 monthly segmented regression for an explicit S-NPP reference."""
+"""HAR-12 monthly segmented regression for an explicit S-NPP reference.
+
+GLOBAL metric: it is fitted once, on the global monthly series (the sum of the
+cell-days of all cells, ``cell = GLOBAL_CELL`` in the output). The input is
+the global series itself (rows with ``cell == GLOBAL_CELL``) or a table of
+cells, whose valid months are summed here by (year, month); the two forms are
+not mixed. A per-cell fit would almost always fall back to the global one.
+"""
 
 import numpy as np
 import pandas as pd
 
-from .common import require_columns
+from .common import GLOBAL_CELL, require_columns
 
 
 REASON = (
@@ -11,28 +18,29 @@ REASON = (
     "factors, then select reference_sensor='viirs-snpp' for transition analysis."
 )
 COLUMNS = [
-    "country", "scope", "status", "reason", "transition_year", "step_raw", "step_adjusted",
+    "cell", "scope", "status", "reason", "transition_year", "step_raw", "step_adjusted",
     "reference_sensor", "factor_used", "uses_global_fallback", "step_se_raw", "step_se_adjusted",
     "n_months", "n_pre_months", "n_post_months", "n_pre_years", "n_post_years", "residual_dof",
 ]
-KEYS = ["country", "year", "month", "series"]
+KEYS = ["cell", "year", "month", "series"]
 
 
 def _output(records):
     result = pd.DataFrame(records, columns=COLUMNS)
-    for column in ["country", "scope", "status", "reason", "reference_sensor"]:
+    for column in ["scope", "status", "reason", "reference_sensor"]:
         result[column] = result[column].astype("object")
     for column in ["step_raw", "step_adjusted", "factor_used", "step_se_raw", "step_se_adjusted"]:
         result[column] = result[column].astype("float64")
+    result["cell"] = result.cell.astype("int64")
     result["transition_year"] = result.transition_year.astype("Int64")
     result["uses_global_fallback"] = result.uses_global_fallback.astype(bool)
     for column in ["n_months", "n_pre_months", "n_post_months", "n_pre_years", "n_post_years", "residual_dof"]:
         result[column] = result[column].astype("int64")
-    return result.sort_values("country").reset_index(drop=True)
+    return result.sort_values("cell").reset_index(drop=True)
 
 
-def _record(country, status, reason, transition_year=pd.NA, reference_sensor=None):
-    return dict(country=country, scope="global" if country == "ALL" else "country",
+def _record(status, reason, transition_year=pd.NA, reference_sensor=None):
+    return dict(cell=GLOBAL_CELL, scope="global",
                 status=status, reason=reason, transition_year=transition_year,
                 step_raw=np.nan, step_adjusted=np.nan, reference_sensor=reference_sensor,
                 factor_used=np.nan, uses_global_fallback=False,
@@ -59,13 +67,18 @@ def _monthly(table, fitted):
         source[["year", "month"]] = source[["year", "month"]].astype("int64")
     if source.duplicated(KEYS).any():
         raise ValueError(f"Duplicate monthly keys: {', '.join(KEYS)}")
+    if source.cell.isna().any():
+        raise ValueError("cell contains missing values")
+    source["cell"] = source.cell.astype("int64")
+    if source.cell.eq(GLOBAL_CELL).any() and source.cell.ne(GLOBAL_CELL).any():
+        raise ValueError("monthly mixes GLOBAL_CELL rows with cells; supply one or the other")
     return source
 
 
 def _factors(table):
-    require_columns(table, ["country", "factor_used"])
-    if table.country.duplicated().any():
-        raise ValueError("Duplicate factor country keys")
+    require_columns(table, ["cell", "factor_used"])
+    if table.cell.duplicated().any():
+        raise ValueError("Duplicate factor cell keys")
     result = table.copy().reset_index(drop=True)
     result["factor_used"] = pd.to_numeric(result.factor_used, errors="coerce").astype("float64")
     supplied = table.factor_used.notna().to_numpy()
@@ -77,7 +90,7 @@ def _factors(table):
     if not flags.dropna().isin([True, False]).all():
         raise ValueError("uses_global_fallback must contain boolean values")
     result["uses_global_fallback"] = flags.astype("boolean").fillna(False).astype(bool)
-    return result.set_index("country")
+    return result.set_index("cell")
 
 
 def _design(group, transition_year):
@@ -156,10 +169,8 @@ def har12_residual_step(monthly: pd.DataFrame, factors=None, reference_sensor=No
         return _output([])
     fitted = reference_sensor == "viirs-snpp" and factors is not None
     source = _monthly(monthly, fitted)
-    countries = source.loc[source.country.ne("ALL"), "country"].drop_duplicates().astype("object").tolist()
-    countries.append("ALL")
     if not fitted:
-        return _output([_record(country, "requires_snpp_inputs", REASON) for country in countries])
+        return _output([_record("requires_snpp_inputs", REASON)])
     calibration = _factors(factors)
     valid = (~source.partial.astype("boolean")) & source.n_unknown_days.le(max_unknown_days)
     selected = source.loc[valid.fillna(False) & source.year.between(
@@ -167,18 +178,12 @@ def har12_residual_step(monthly: pd.DataFrame, factors=None, reference_sensor=No
     )].copy()
     selected = selected.loc[(selected.year.lt(transition_year) & selected.series.eq("modis"))
                             | (selected.year.ge(transition_year) & selected.series.eq("viirs"))]
-    actual = selected.loc[selected.country.ne("ALL")]
-    if len(source.loc[source.country.ne("ALL")]):
-        global_months = actual.groupby(["year", "month"], observed=True, dropna=False).cell_days.sum().reset_index()
-        global_months["country"] = "ALL"
-        selected = pd.concat([actual, global_months], ignore_index=True)
-    records = []
-    for country in countries:
-        record = _record(country, "insufficient_data", "Too few valid months or years around the transition.",
-                         transition_year, reference_sensor)
-        if country in calibration.index:
-            record["factor_used"] = calibration.loc[country, "factor_used"]
-            record["uses_global_fallback"] = calibration.loc[country, "uses_global_fallback"]
-        group = selected.loc[selected.country.eq(country)].sort_values(["year", "month"])
-        records.append(_fit(group, record, min_months_each_side, min_years_each_side))
-    return _output(records)
+    # One global series: the cell-days of the valid cells add up per month.
+    group = selected.groupby(["year", "month"], observed=True).cell_days.sum().reset_index()
+    group = group.sort_values(["year", "month"])
+    record = _record("insufficient_data", "Too few valid months or years around the transition.",
+                     transition_year, reference_sensor)
+    if GLOBAL_CELL in calibration.index:
+        record["factor_used"] = calibration.loc[GLOBAL_CELL, "factor_used"]
+        record["uses_global_fallback"] = calibration.loc[GLOBAL_CELL, "uses_global_fallback"]
+    return _output([_fit(group, record, min_months_each_side, min_years_each_side)])

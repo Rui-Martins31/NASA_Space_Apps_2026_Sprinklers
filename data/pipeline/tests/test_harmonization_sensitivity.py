@@ -6,10 +6,11 @@ import pytest
 from pandas.testing import assert_frame_equal
 
 from metrics import harmonization_sensitivity as h
+from metrics.common import GLOBAL_CELL
 
 
 def monthly_rows(*changes):
-    base = dict(country="Portugal", year=2018, month=1, series="modis",
+    base = dict(cell=GLOBAL_CELL, year=2018, month=1, series="modis",
                 cell_days=2, partial=False, n_unknown_days=0)
     return pd.DataFrame([base | change for change in changes])
 
@@ -22,7 +23,7 @@ def detections(latitudes=(0.01, 0.11), confidences=None):
     records = []
     for instrument, satellite in [("MODIS", "Terra"), ("VIIRS", "N20")]:
         for index, latitude in enumerate(latitudes):
-            records.append(dict(country="Portugal", instrument=instrument, satellite=satellite,
+            records.append(dict(instrument=instrument, satellite=satellite,
                                 latitude=latitude, longitude=0.01, acq_date="2018-01-01",
                                 type=0, confidence_class="h" if confidences is None else confidences[index]))
     result = pd.DataFrame(records)
@@ -38,9 +39,9 @@ def variant_inputs():
                             ("grid_0.25", [(1, 2), (2, 3)])]:
         for year, (modis, viirs) in zip([2018, 2022], counts):
             for series, value in [("modis", modis), ("viirs", viirs)]:
-                records.append(dict(variant=variant, country="Portugal", year=year, month=1,
+                records.append(dict(variant=variant, cell=GLOBAL_CELL, year=year, month=1,
                                     series=series, cell_days=value, partial=False, n_unknown_days=0))
-            overlaps.append(dict(variant=variant, country="Portugal", year=year, month=1,
+            overlaps.append(dict(variant=variant, cell=GLOBAL_CELL, year=year, month=1,
                                  n_modis=modis, n_viirs=viirs, n_both=1,
                                  n_union=modis + viirs - 1))
     return pd.DataFrame(records), pd.DataFrame(overlaps)
@@ -80,7 +81,8 @@ def test_builder_empty_detections_retains_zero_months():
 def test_grid_summary_manual_values_and_calibration_only_refit():
     monthly, overlap = variant_inputs()
     result = h.har13_grid_sensitivity(monthly, overlap, min_cal_months=1)
-    country = result.loc[result.country.eq("Portugal")].set_index("variant")
+    assert result.cell.eq(GLOBAL_CELL).all() and len(result) == 2
+    country = result.set_index("variant")
     assert country.loc["grid_0.1", ["sum_modis", "sum_viirs", "n_both", "n_union"]].tolist() == [3, 5, 1, 7]
     assert country.loc["grid_0.25", ["sum_modis", "sum_viirs", "n_both", "n_union"]].tolist() == [2, 3, 1, 4]
     assert country.factor_used.tolist() == [2.0, 2.0]
@@ -89,7 +91,7 @@ def test_grid_summary_manual_values_and_calibration_only_refit():
     assert country.delta_modis_pct.tolist() == pytest.approx([0, -33.333333333333336])
     assert country.delta_viirs_pct.tolist() == pytest.approx([0, -40])
     assert country.delta_mae_adjusted_pct.tolist() == [0, 0]
-    assert result.loc[result.country.eq("ALL"), "mae_adjusted"].tolist() == [1, 1]
+    assert result.mae_adjusted.tolist() == [1, 1]
     # Test VIIRS changes alter evaluation errors, with training factors fixed.
     altered = monthly.copy()
     altered.loc[altered.year.eq(2022) & altered.series.eq("viirs"), "cell_days"] += 100
@@ -105,7 +107,7 @@ def test_confidence_summary_uses_its_named_baseline():
     monthly.variant = monthly.variant.map(names)
     overlap.variant = overlap.variant.map(names)
     result = h.har14_confidence_sensitivity(monthly, overlap, min_cal_months=1)
-    country = result.loc[result.country.eq("Portugal")].set_index("variant")
+    country = result.set_index("variant")
     assert country.loc["nominal_high", "delta_modis_pct"] == 0
     assert country.loc["high_only", "delta_modis_pct"] == pytest.approx(-33.333333333333336)
 
@@ -115,8 +117,8 @@ def test_common_windows_exclude_month_missing_from_one_variant():
     second = monthly.loc[monthly.year.eq(2022)].assign(month=2, cell_days=100)
     monthly = pd.concat([monthly, second.loc[second.variant.eq("grid_0.1")]], ignore_index=True)
     result = h.har13_grid_sensitivity(monthly, overlap, min_cal_months=1)
-    assert result.n_pairs.tolist() == [1] * 4
-    assert result.loc[result.country.eq("Portugal"), "sum_modis"].tolist() == [3, 2]
+    assert result.n_pairs.tolist() == [1] * 2
+    assert result.sum_modis.tolist() == [3, 2]
 
 
 def test_zero_baselines_and_unavailable_factors():
@@ -140,8 +142,10 @@ def test_empty_summary_schema(function):
 
 
 def test_builder_and_summary_reject_missing_or_duplicate_fields():
-    with pytest.raises(ValueError, match="country"):
-        h.build_variant_tables(detections().drop(columns="country"), skeleton(), h.GRID_VARIANTS)
+    with pytest.raises(ValueError, match="confidence_class"):
+        h.build_variant_tables(detections().drop(columns="confidence_class"), skeleton(), h.GRID_VARIANTS)
+    with pytest.raises(ValueError, match="cell"):
+        h.build_variant_tables(detections(), skeleton().drop(columns="cell"), h.GRID_VARIANTS)
     with pytest.raises(ValueError, match="Duplicate"):
         h.build_variant_tables(detections(), pd.concat([skeleton(), skeleton()]), h.GRID_VARIANTS)
     monthly, overlap = variant_inputs()
@@ -174,24 +178,36 @@ def test_shuffle_immutability_and_categorical_keys():
     assert_frame_equal(expected_summary, h.har13_grid_sensitivity(monthly.sample(frac=1, random_state=11), overlap.sample(frac=1, random_state=12), min_cal_months=1))
     assert_frame_equal(monthly, before[0])
     assert_frame_equal(overlap, before[1])
-    monthly["country"] = pd.Categorical(monthly.country, categories=["Portugal", "Unused"])
     monthly["variant"] = pd.Categorical(monthly.variant, categories=["grid_0.1", "grid_0.25", "Unused"])
     with warnings.catch_warnings():
         warnings.simplefilter("error", FutureWarning)
         assert_frame_equal(h.har13_grid_sensitivity(monthly, overlap, min_cal_months=1), expected_summary)
 
 
-def test_global_membership_uses_only_countries_comparable_in_every_variant():
+def test_cells_other_than_the_global_one_are_rejected():
+    """HAR-13/14 are global: the variants change the grid, so per-cell series are not comparable."""
     monthly, overlap = variant_inputs()
-    spain = monthly.assign(country="Spain")
-    spain = spain.loc[~(spain.variant.eq("grid_0.25") & spain.year.eq(2022) & spain.series.eq("viirs"))]
-    monthly = pd.concat([monthly, spain], ignore_index=True)
-    overlap = pd.concat([overlap, overlap.assign(country="Spain")], ignore_index=True)
-    result = h.har13_grid_sensitivity(monthly, overlap, min_cal_months=1)
-    assert result.loc[result.country.eq("Spain"), "n_pairs"].tolist() == [0, 0]
-    assert result.loc[result.country.eq("Spain"), "sum_modis"].tolist() == [0, 0]
-    assert result.loc[result.country.eq("ALL"), "sum_modis"].tolist() == [3, 2]
-    assert result.loc[result.country.eq("ALL"), "n_pairs"].tolist() == [1, 1]
+    with pytest.raises(ValueError, match="GLOBAL_CELL"):
+        h.har13_grid_sensitivity(monthly.assign(cell=7), overlap, min_cal_months=1)
+    with pytest.raises(ValueError, match="GLOBAL_CELL"):
+        h.har13_grid_sensitivity(monthly, overlap.assign(cell=7), min_cal_months=1)
+    with pytest.raises(ValueError, match="GLOBAL_CELL"):
+        h.build_variant_tables(detections(), skeleton().assign(cell=7), h.GRID_VARIANTS)
+
+
+def test_builder_output_feeds_the_summary_and_matches_the_hand_count():
+    """End to end on raw detections: 2 cells at 0.1 deg merge into 1 at 0.25 deg, per instrument."""
+    source = pd.concat([detections().assign(acq_date=f"2018-01-0{day}") for day in (1, 2)], ignore_index=True)
+    template = pd.concat([skeleton(2018), skeleton(2022)], ignore_index=True)
+    monthly, overlap = h.build_variant_tables(source, template, h.GRID_VARIANTS)
+    counts = monthly.loc[monthly.year.eq(2018)].set_index(["variant", "series"]).cell_days
+    assert counts.to_dict() == {("grid_0.1", "modis"): 4, ("grid_0.1", "viirs"): 4,
+                                ("grid_0.25", "modis"): 2, ("grid_0.25", "viirs"): 2}
+    assert overlap.set_index("variant")[["n_both", "n_union"]].to_dict("list") == {
+        "n_both": [4, 2], "n_union": [4, 2]}
+    assert overlap.cell.eq(GLOBAL_CELL).all()
+    summary = h.har13_grid_sensitivity(monthly, overlap, min_cal_months=1)
+    assert summary.cell.eq(GLOBAL_CELL).all()
 
 
 def test_seeded_independent_decimal_grid_and_set_oracle():
@@ -235,7 +251,7 @@ def test_all_invalid_months_remain_with_zero_comparable_pairs():
     monthly, overlap = variant_inputs()
     monthly["partial"] = True
     result = h.har13_grid_sensitivity(monthly, overlap, min_cal_months=1)
-    assert len(result) == 4
+    assert len(result) == 2
     assert result.n_pairs.eq(0).all()
     assert result.factor_used.isna().all()
     assert result.mae_raw.isna().all()

@@ -5,13 +5,15 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
-from metrics.ingestion_qa import qa01_schema_validation, add03_duplicates, add04_zero_detection_countries
+import metrics.ingestion_qa as ingestion_qa
+from metrics.common import cell_key
+from metrics.ingestion_qa import qa01_schema_validation, add03_duplicates
 
 
 FAILURES = [
     "coords", "date", "time", "instrument", "satellite", "daynight", "confidence"
 ]
-COLUMNS = ["country", "instrument", "n_rows", "n_valid", "n_invalid", "pct_valid"] + [
+COLUMNS = ["instrument", "n_rows", "n_valid", "n_invalid", "pct_valid"] + [
     f"n_fail_{rule}" for rule in FAILURES
 ]
 
@@ -38,7 +40,7 @@ def test_manual_counts_overlapping_failures_and_multiple_years():
     )
     before = df.copy(deep=True)
     expected = pd.DataFrame([
-        ["Portugal", "MODIS", 4, 2, 2, 50.0, 1, 1, 1, 0, 0, 1, 1]
+        ["MODIS", 4, 2, 2, 50.0, 1, 1, 1, 0, 0, 1, 1]
     ], columns=COLUMNS)
     assert_frame_equal(qa01_schema_validation(df), expected, check_dtype=False)
     assert_frame_equal(df, before)
@@ -97,7 +99,6 @@ def test_all_null_row_remains_in_unknown_instrument_group():
     df = df.astype(object)
     df.loc[0, :] = None
     result = qa01_schema_validation(df).iloc[0]
-    assert pd.isna(result["country"])
     assert result["instrument"] == "unknown"
     assert result["n_rows"] == 1
     assert result["n_invalid"] == 1
@@ -113,75 +114,70 @@ def test_sorted_groups_order_invariance_and_count_invariants():
     df.index = [9, 9, 2, 1, 1]
     result = qa01_schema_validation(df)
     assert_frame_equal(result, qa01_schema_validation(df.sample(frac=1, random_state=27)))
-    assert list(zip(result.country, result.instrument)) == [
-        ("Portugal", "MODIS"), ("Portugal", "VIIRS"),
-        ("Portugal", "unknown"), ("Spain", "MODIS"),
-    ]
-    assert result["n_rows"].tolist() == [1, 1, 1, 2]
-    assert result["pct_valid"].tolist() == [100.0, 100.0, 0.0, 50.0]
+    assert result.instrument.tolist() == ["MODIS", "VIIRS", "unknown"]     # global: o pais nao separa grupos
+    assert "country" not in result.columns
+    assert result["n_rows"].tolist() == [3, 1, 1]
+    assert result["pct_valid"].tolist() == [200 / 3, 100.0, 0.0]
     assert (result.n_valid + result.n_invalid).equals(result.n_rows)
-    assert result.index.tolist() == [0, 1, 2, 3]
+    assert result.index.tolist() == [0, 1, 2]
+
+
+def test_qa01_does_not_require_country_and_counts_invalid_coords_rule():
+    df = records({}, {"latitude": np.nan}, {"longitude": 181})
+    result = qa01_schema_validation(df.drop(columns=["country"]))
+    assert result[["n_rows", "n_invalid", "n_fail_coords"]].iloc[0].tolist() == [3, 2, 2]
 
 
 def test_duplicates_manual_and_null_island():
     df = records({}, {}, {"latitude": 0, "longitude": 0},
                  {"satellite": "Aqua"}, {"acq_date": "invalid"})
     result = add03_duplicates(df)
-    assert result.satellite.tolist() == ["Aqua", "Terra"]
-    assert result.n_rows.tolist() == [1, 3]
-    assert result.n_dup_rows.tolist() == [0, 1]
-    assert result.n_null_island.tolist() == [0, 1]
-    assert result.pct_dup.tolist() == pytest.approx([0, 33.333333333333336])
+    assert list(result.columns) == ["cell", "year", "instrument", "satellite",
+                                    "n_rows", "n_dup_rows", "pct_dup", "n_null_island"]
+    assert result.satellite.tolist() == ["Terra", "Aqua", "Terra"]       # ordenado por cell: (0,0) antes de Portugal
+    by = {(int(r.cell), r.satellite): r for r in result.itertuples()}
+    c_pt = int(cell_key([40.0], [-8.0])[0])
+    c_null = int(cell_key([0.0], [0.0])[0])
+    assert set(by) == {(c_pt, "Terra"), (c_pt, "Aqua"), (c_null, "Terra")}
+    assert (by[(c_pt, "Terra")].n_rows, by[(c_pt, "Terra")].n_dup_rows) == (2, 1)
+    assert by[(c_pt, "Terra")].pct_dup == 50.0
+    assert (by[(c_pt, "Aqua")].n_rows, by[(c_pt, "Aqua")].n_dup_rows) == (1, 0)
+    assert (by[(c_null, "Terra")].n_rows, by[(c_null, "Terra")].n_null_island) == (1, 1)
     assert_frame_equal(result, add03_duplicates(df.sample(frac=1, random_state=2)))
 
 
-def test_duplicates_null_tuples_and_distinct_times():
-    df = records({"latitude": None}, {"latitude": None}, {"acq_time": "0931"})
-    assert add03_duplicates(df).n_dup_rows.tolist() == [1]
+def test_duplicates_across_country_files_are_detected():
+    """O pais nao esta na chave: o mesmo ponto em dois ficheiros de paises e um duplicado."""
+    df = records({"country": "Portugal"}, {"country": "Spain"}, {"country": "Spain", "acq_time": "0931"})
+    result = add03_duplicates(df)
+    assert result.n_rows.tolist() == [3]
+    assert result.n_dup_rows.tolist() == [1]
 
 
-def test_zero_countries_manual_missing_years_and_zero_rows():
-    counts = pd.DataFrame([
-        ["Portugal", "MODIS", 2000, 2], ["Portugal", "MODIS", 2002, 1],
-        ["Spain", "MODIS", 2000, 0], ["Spain", "MODIS", 2002, 1],
-        ["Portugal", "VIIRS", 2018, 1],
-    ], columns=["country", "instrument", "year", "n_rows"])
-    before = counts.copy(deep=True)
-    expected = pd.DataFrame([
-        ["MODIS", 2000, "Spain", 1], ["MODIS", 2001, "Portugal", 2],
-        ["MODIS", 2001, "Spain", 1],
-    ], columns=["instrument", "year", "country", "n_years_with_data"])
-    assert_frame_equal(add04_zero_detection_countries(counts), expected)
-    assert_frame_equal(add04_zero_detection_countries(counts.sample(frac=1, random_state=9)), expected)
-    assert_frame_equal(counts, before)
+def test_duplicates_rows_with_invalid_coordinates_are_excluded():
+    df = records({"latitude": None}, {"latitude": None}, {"acq_time": "0931"}, {"latitude": 95.0})
+    result = add03_duplicates(df)
+    assert result.n_rows.tolist() == [1]
+    assert result.n_dup_rows.tolist() == [0]
 
 
-@pytest.mark.parametrize("function,columns", [
-    (add03_duplicates, ["country", "year", "instrument", "satellite", "n_rows", "n_dup_rows", "pct_dup", "n_null_island"]),
-    (add04_zero_detection_countries, ["instrument", "year", "country", "n_years_with_data"]),
-])
-def test_additional_empty_and_missing_columns(function, columns):
-    result = function(pd.DataFrame())
+def test_duplicates_grid_deg_changes_cells_not_duplicate_detection():
+    df = records({}, {"latitude": 40.06})
+    assert add03_duplicates(df, grid_deg=0.1).n_rows.tolist() == [2]
+    fine = add03_duplicates(df, grid_deg=0.01)
+    assert fine.n_rows.tolist() == [1, 1]
+    assert fine.n_dup_rows.tolist() == [0, 0]
+    assert fine.cell.tolist() == sorted(cell_key([40.0, 40.06], [-8.0, -8.0], 0.01).tolist())
+
+
+def test_add04_was_removed():
+    assert not hasattr(ingestion_qa, "add04_zero_detection_countries")
+
+
+def test_additional_empty_and_missing_columns():
+    result = add03_duplicates(pd.DataFrame())
     assert result.empty
-    assert list(result.columns) == columns
-    with pytest.raises(ValueError, match="country"):
-        function(pd.DataFrame({"placeholder": [1]}))
-
-
-def test_zero_countries_duplicate_counts_and_no_missing_combinations():
-    counts = pd.DataFrame({"country": ["Portugal", "Portugal"],
-                           "instrument": ["MODIS", "MODIS"], "year": [2000, 2000], "n_rows": [1, 2]})
-    assert add04_zero_detection_countries(counts).empty
-    counts.n_rows = 0
-    result = add04_zero_detection_countries(counts)
-    assert result.n_years_with_data.tolist() == [0]
-
-
-def test_zero_countries_includes_absences_in_last_year():
-    counts = pd.DataFrame([["Portugal", "MODIS", 2000, 1], ["Spain", "MODIS", 2002, 1]],
-                          columns=["country", "instrument", "year", "n_rows"])
-    result = add04_zero_detection_countries(counts)
-    assert result[["year", "country"]].values.tolist() == [
-        [2000, "Spain"], [2001, "Portugal"], [2001, "Spain"], [2002, "Portugal"]
-    ]
-    assert result.n_years_with_data.tolist() == [1, 1, 1, 1]
+    assert list(result.columns) == ["cell", "year", "instrument", "satellite", "n_rows",
+                                    "n_dup_rows", "pct_dup", "n_null_island"]
+    with pytest.raises(ValueError, match="latitude"):
+        add03_duplicates(pd.DataFrame({"placeholder": [1]}))

@@ -39,13 +39,13 @@ def row_of(df, **key):
 
 # ------------------------------------------------------------------ comuns
 def test_column_constants():
-    assert HIS01_COLUMNS == ["country", "series", "month", "n_ref_years", "median_cell_days"]
-    assert HIS02_COLUMNS == ["country", "series", "month", "n_ref_years", "p10", "p90"]
-    assert HIS05_COLUMNS == ["country", "series", "year", "month", "cell_days", "valid_month",
+    assert HIS01_COLUMNS == ["cell", "series", "month", "n_ref_years", "median_cell_days"]
+    assert HIS02_COLUMNS == ["cell", "series", "month", "n_ref_years", "p10", "p90"]
+    assert HIS05_COLUMNS == ["cell", "series", "year", "month", "cell_days", "valid_month",
                              "n_ref_years", "ref_mean", "ref_std", "zscore"]
-    assert HIS06_COLUMNS == ["country", "series", "year", "month", "cell_days", "valid_month",
+    assert HIS06_COLUMNS == ["cell", "series", "year", "month", "cell_days", "valid_month",
                              "n_ref_years", "percentile"]
-    assert HIS09_COLUMNS == ["country", "series", "year", "n_months_evaluated",
+    assert HIS09_COLUMNS == ["cell", "series", "year", "n_months_evaluated",
                              "n_months_above", "months_above"]
 
 
@@ -64,11 +64,11 @@ def test_missing_column_raises(fn, cols):
 
 @pytest.mark.parametrize("fn,cols", METRICS, ids=IDS)
 def test_output_columns_sorted_and_index_reset(fn, cols):
-    rows = (series_rows(SIX, country="Z", series="viirs") + series_rows(SIX, country="A")
-            + series_rows(SIX, month=4, country="A", series="combined"))
+    rows = (series_rows(SIX, cell=9, series="viirs") + series_rows(SIX, cell=1)
+            + series_rows(SIX, month=4, cell=1, series="combined"))
     out = fn(monthly_df(rows).iloc[::-1])
     assert list(out.columns) == cols
-    keys = [c for c in ["country", "series", "year", "month"] if c in cols]
+    keys = [c for c in ["cell", "series", "year", "month"] if c in cols]
     assert out[keys].values.tolist() == sorted(out[keys].values.tolist())
     assert list(out.index) == list(range(len(out)))
 
@@ -76,7 +76,7 @@ def test_output_columns_sorted_and_index_reset(fn, cols):
 @pytest.mark.parametrize("fn,cols", METRICS, ids=IDS)
 def test_row_order_invariance(fn, cols):
     rng = random.Random(7)
-    rows = (series_rows([3, 8, 8, 1, 9, 4, 7], country="B") + series_rows(SIX, month=5)
+    rows = (series_rows([3, 8, 8, 1, 9, 4, 7], cell=2) + series_rows(SIX, month=5)
             + series_rows([0, 0, 5, 0, 0, 2], month=5, series="viirs"))
     rows[2]["partial"] = True
     base = monthly_df(rows)
@@ -90,9 +90,9 @@ def test_row_order_invariance(fn, cols):
 def test_his01_hand_example():
     out = his01_hist_median(six())
     assert len(out) == 12                                   # sempre os 12 meses do par
-    assert row_of(out, month=3) == {"country": "P", "series": "modis", "month": 3,
+    assert row_of(out, month=3) == {"cell": 1, "series": "modis", "month": 3,
                                     "n_ref_years": 6, "median_cell_days": 35.0}
-    assert row_of(out, month=4) == {"country": "P", "series": "modis", "month": 4,
+    assert row_of(out, month=4) == {"cell": 1, "series": "modis", "month": 4,
                                     "n_ref_years": 0, "median_cell_days": None}
 
 
@@ -134,26 +134,26 @@ def test_his01_reference_window_inclusive():
 
 
 def test_his01_pairs_are_independent():
-    rows = series_rows(SIX, country="A") + series_rows([0, 0, 0, 0, 0, 7], country="B", series="viirs")
+    rows = series_rows(SIX, cell=1) + series_rows([0, 0, 0, 0, 0, 7], cell=2, series="viirs")
     out = his01_hist_median(monthly_df(rows))
-    assert row_of(out, country="A", month=3)["median_cell_days"] == 35.0
-    assert row_of(out, country="B", month=3)["median_cell_days"] == 0.0
+    assert row_of(out, cell=1, month=3)["median_cell_days"] == 35.0
+    assert row_of(out, cell=2, month=3)["median_cell_days"] == 0.0
 
 
 # ------------------------------------------------------------------ HIS-02
 def test_his02_hand_example():
     out = his02_hist_band(six())
     assert len(out) == 12
-    assert row_of(out, month=3) == {"country": "P", "series": "modis", "month": 3,
+    assert row_of(out, month=3) == {"cell": 1, "series": "modis", "month": 3,
                                     "n_ref_years": 6, "p10": 15.0, "p90": 55.0}
-    assert row_of(out, month=9) == {"country": "P", "series": "modis", "month": 9,
+    assert row_of(out, month=9) == {"cell": 1, "series": "modis", "month": 9,
                                     "n_ref_years": 0, "p10": None, "p90": None}
 
 
 def test_his02_na_below_min_and_param():
     df = monthly_df(series_rows([10, 20, 30, 40]))
     assert row_of(his02_hist_band(df), month=3) == {
-        "country": "P", "series": "modis", "month": 3, "n_ref_years": 4, "p10": None, "p90": None}
+        "cell": 1, "series": "modis", "month": 3, "n_ref_years": 4, "p10": None, "p90": None}
     r = row_of(his02_hist_band(df, min_ref_years=4), month=3)       # posicoes 0,3 e 2,7
     assert (r["p10"], r["p90"]) == (pytest.approx(13.0), pytest.approx(37.0))
 
@@ -172,7 +172,7 @@ def test_his05_hand_example():
     out = his05_zscore(six())
     assert len(out) == 6
     r = row_of(out, year=2003)
-    assert r["country"] == "P" and r["series"] == "modis" and r["month"] == 3
+    assert r["cell"] == 1 and r["series"] == "modis" and r["month"] == 3
     assert (r["cell_days"], r["valid_month"], r["n_ref_years"], r["ref_mean"]) == (30, True, 5, 36.0)
     assert r["ref_std"] == pytest.approx(math.sqrt(430), rel=1e-12)
     assert r["zscore"] == pytest.approx(-0.2893456933022473, rel=1e-12)
@@ -239,7 +239,7 @@ def test_his06_hand_example():
     assert len(out) == 6
     assert out["percentile"].tolist() == [0.0, 20.0, 40.0, 60.0, 80.0, 100.0]
     r = row_of(out, year=2003)
-    assert r == {"country": "P", "series": "modis", "year": 2003, "month": 3, "cell_days": 30,
+    assert r == {"cell": 1, "series": "modis", "year": 2003, "month": 3, "cell_days": 30,
                  "valid_month": True, "n_ref_years": 5, "percentile": 40.0}
 
 
@@ -279,7 +279,7 @@ def test_his09_hand_example():
     rows = series_rows(SIX, month=3) + series_rows([1, 1, 1, 1, 1, 9], month=4)
     out = his09_months_above(monthly_df(rows))
     # p90: mes 3 = 55; mes 4 = (1+9)/2 = 5
-    base = {"country": "P", "series": "modis", "n_months_evaluated": 2,
+    base = {"cell": 1, "series": "modis", "n_months_evaluated": 2,
             "n_months_above": 0, "months_above": ""}
     expected = [{**base, "year": y} for y in range(2001, 2006)]
     expected.append({**base, "year": 2006, "n_months_above": 2, "months_above": "3,4"})
@@ -308,7 +308,7 @@ def test_his09_month_without_defined_p90_is_not_evaluated():
     rows += series_rows([0, 0, 0, 0, 0, 5], month=4)         # 6 anos: p90 = 2,5
     out = his09_months_above(monthly_df(rows))
     assert row_of(out, year=2006) == {
-        "country": "P", "series": "modis", "year": 2006, "n_months_evaluated": 1,
+        "cell": 1, "series": "modis", "year": 2006, "n_months_evaluated": 1,
         "n_months_above": 1, "months_above": "4"}
     r = row_of(out, year=2001)
     assert (r["n_months_evaluated"], r["n_months_above"], r["months_above"]) == (1, 0, "")
@@ -357,11 +357,11 @@ def test_his09_reference_window_applies_to_pool_not_to_evaluated_years():
     assert out["n_months_evaluated"].tolist() == [0] * 6
 
 
-def test_his09_groups_by_country_and_series():
-    rows = series_rows(SIX, country="A") + series_rows([0, 0, 0, 0, 0, 3], country="B", series="viirs")
+def test_his09_groups_by_cell_and_series():
+    rows = series_rows(SIX, cell=1) + series_rows([0, 0, 0, 0, 0, 3], cell=2, series="viirs")
     out = his09_months_above(monthly_df(rows))
-    assert out[["country", "series", "year"]].values.tolist() == (
-        [["A", "modis", y] for y in range(2001, 2007)] + [["B", "viirs", y] for y in range(2001, 2007)])
+    assert out[["cell", "series", "year"]].values.tolist() == (
+        [[1, "modis", y] for y in range(2001, 2007)] + [[2, "viirs", y] for y in range(2001, 2007)])
     assert out["n_months_above"].tolist() == [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1]
 
 
@@ -369,13 +369,13 @@ def test_his09_groups_by_country_and_series():
 def _random_monthly(seed):
     rng = random.Random(seed)
     rows = []
-    for country in ("A", "B"):
+    for cell in (1, 2):
         for series in ("modis", "combined"):
             for month in (1, 6, 12):
                 for year in range(2000, 2016):
                     if rng.random() < 0.1:
                         continue
-                    rows.append({"country": country, "series": series, "year": year,
+                    rows.append({"cell": cell, "series": series, "year": year,
                                  "month": month, "cell_days": rng.choice([0, 1, 2, 5, 5, 9, 17, 30]),
                                  "partial": rng.random() < 0.1,
                                  "n_unknown_days": rng.choice([0, 0, 0, 0, 3])})
@@ -384,14 +384,14 @@ def _random_monthly(seed):
 
 
 def _oracle_pools(rows, ref_start, ref_end):
-    """Pools por (country, series, month) em Python puro: {chave: {ano: valor}}."""
+    """Pools por (cell, series, month) em Python puro: {chave: {ano: valor}}."""
     pools = {}
     for r in rows:
         if r["partial"] or r["n_unknown_days"] > 0:
             continue
         if not (ref_start <= r["year"] <= ref_end):
             continue
-        pools.setdefault((r["country"], r["series"], r["month"]), {})[r["year"]] = r["cell_days"]
+        pools.setdefault((r["cell"], r["series"], r["month"]), {})[r["year"]] = r["cell_days"]
     return pools
 
 
@@ -402,9 +402,9 @@ def test_oracle_matches_pure_python(seed):
     df = monthly_df(rows)
     pools = _oracle_pools(rows, ref_start, ref_end)
 
-    med = {(r["country"], r["series"], r["month"]): r
+    med = {(r["cell"], r["series"], r["month"]): r
            for r in recs(his01_hist_median(df, ref_start, ref_end))}
-    band = {(r["country"], r["series"], r["month"]): r
+    band = {(r["cell"], r["series"], r["month"]): r
             for r in recs(his02_hist_band(df, ref_start, ref_end))}
     assert len(med) == len(band) == 4 * 12
     for key, row in med.items():
@@ -422,13 +422,13 @@ def test_oracle_matches_pure_python(seed):
     z = his05_zscore(df, ref_start, ref_end)
     p = his06_percentile(df, ref_start, ref_end)
     assert len(z) == len(p) == len(rows)
-    zmap = {(r["country"], r["series"], r["year"], r["month"]): r for r in recs(z)}
-    pmap = {(r["country"], r["series"], r["year"], r["month"]): r for r in recs(p)}
+    zmap = {(r["cell"], r["series"], r["year"], r["month"]): r for r in recs(z)}
+    pmap = {(r["cell"], r["series"], r["year"], r["month"]): r for r in recs(p)}
     n_defined = 0
     for r in rows:
-        k = (r["country"], r["series"], r["year"], r["month"])
+        k = (r["cell"], r["series"], r["year"], r["month"])
         valid = (not r["partial"]) and r["n_unknown_days"] == 0
-        pool = [v for y, v in pools.get((r["country"], r["series"], r["month"]), {}).items()
+        pool = [v for y, v in pools.get((r["cell"], r["series"], r["month"]), {}).items()
                 if y != r["year"]]
         assert zmap[k]["valid_month"] == valid == pmap[k]["valid_month"]
         assert zmap[k]["n_ref_years"] == len(pool) == pmap[k]["n_ref_years"]
@@ -449,9 +449,9 @@ def test_oracle_matches_pure_python(seed):
 
     exp = {}
     for r in rows:
-        e = exp.setdefault((r["country"], r["series"], r["year"]), [0, []])
+        e = exp.setdefault((r["cell"], r["series"], r["year"]), [0, []])
         valid = (not r["partial"]) and r["n_unknown_days"] == 0
-        vals = list(pools.get((r["country"], r["series"], r["month"]), {}).values())
+        vals = list(pools.get((r["cell"], r["series"], r["month"]), {}).values())
         if valid and len(vals) >= min_n:
             e[0] += 1
             if r["cell_days"] > statistics.quantiles(vals, n=10, method="inclusive")[8]:
@@ -460,7 +460,7 @@ def test_oracle_matches_pure_python(seed):
     assert len(a) == len(exp)
     assert sum(len(v[1]) for v in exp.values()) > 0
     for row in recs(a):
-        n_ev, above = exp[(row["country"], row["series"], row["year"])]
+        n_ev, above = exp[(row["cell"], row["series"], row["year"])]
         assert row["n_months_evaluated"] == n_ev
         assert row["n_months_above"] == len(above)
         assert row["months_above"] == ",".join(str(m) for m in sorted(above))

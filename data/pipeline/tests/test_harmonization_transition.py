@@ -6,21 +6,25 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
+from metrics.common import GLOBAL_CELL
 from metrics.harmonization_transition import COLUMNS, har12_residual_step
+
+
+PT, ES = 101, 102      # arbitrary cell identifiers (the cells of the old countries)
 
 
 def source():
     return pd.DataFrame([
-        ["Portugal", 2018, 1, "modis"], ["Portugal", 2018, 1, "viirs"],
-        ["Spain", 2018, 1, "modis"],
-    ], columns=["country", "year", "month", "series"])
+        [PT, 2018, 1, "modis"], [PT, 2018, 1, "viirs"],
+        [ES, 2018, 1, "modis"],
+    ], columns=["cell", "year", "month", "series"])
 
 
 def test_unconfigured_monthly_input_requires_separate_snpp_data():
     result = har12_residual_step(source())
-    assert result.country.tolist() == ["ALL", "Portugal", "Spain"]
-    assert result.scope.tolist() == ["global", "country", "country"]
-    assert result.status.tolist() == ["requires_snpp_inputs"] * 3
+    assert result.cell.tolist() == [GLOBAL_CELL]
+    assert result.scope.tolist() == ["global"]
+    assert result.status.tolist() == ["requires_snpp_inputs"]
     assert result.reason.str.contains("S-NPP monthly", regex=False).all()
     assert result[["transition_year", "step_raw", "step_adjusted"]].isna().all().all()
 
@@ -29,6 +33,7 @@ def test_empty_schema():
     result = har12_residual_step(pd.DataFrame())
     assert result.empty
     assert result.columns.tolist() == COLUMNS
+    assert result.cell.dtype == "int64"
     assert str(result.transition_year.dtype) == "Int64"
     assert result.step_raw.dtype == "float64"
 
@@ -41,28 +46,28 @@ def test_shuffle_immutability_and_duplicate_keys():
     assert_frame_equal(frame, before)
     with pytest.raises(ValueError, match="Duplicate monthly keys"):
         har12_residual_step(pd.concat([frame, frame.iloc[:1]], ignore_index=True))
-    with pytest.raises(ValueError, match="country"):
-        har12_residual_step(frame.drop(columns="country"))
+    with pytest.raises(ValueError, match="cell"):
+        har12_residual_step(frame.drop(columns="cell"))
 
 
-def model_source(constant=False, country="Portugal"):
+def model_source(constant=False, cell=GLOBAL_CELL):
     records = []
     for year in range(2007, 2017):
         for month in range(1, 13):
             elapsed = (year - 2012) * 12 + month - 1
             modis = 10 if constant else 200 + elapsed + month - 1
-            records.append([country, year, month, "modis", modis, False, 0])
+            records.append([cell, year, month, "modis", modis, False, 0])
             if year >= 2012:
                 viirs = 20 if constant else modis + 30 + 2 * elapsed
-                records.append([country, year, month, "viirs", viirs, False, 0])
+                records.append([cell, year, month, "viirs", viirs, False, 0])
     return pd.DataFrame(records, columns=[
-        "country", "year", "month", "series", "cell_days", "partial", "n_unknown_days",
+        "cell", "year", "month", "series", "cell_days", "partial", "n_unknown_days",
     ])
 
 
 def factors(value=1.0, fallback=False):
-    return pd.DataFrame(dict(country=["Portugal", "ALL"], factor_used=[value, value],
-                             uses_global_fallback=[fallback, False]))
+    return pd.DataFrame(dict(cell=[PT, GLOBAL_CELL], factor_used=[value, value],
+                             uses_global_fallback=[fallback, fallback]))
 
 
 def evaluate(frame, calibration=None, **options):
@@ -72,23 +77,23 @@ def evaluate(frame, calibration=None, **options):
 
 def test_known_level_trend_slope_change_and_seasonality():
     result = evaluate(model_source())
-    assert result.status.tolist() == ["ok", "ok"]
-    assert result.transition_year.tolist() == [2012, 2012]
-    assert result.n_months.tolist() == [120, 120]
-    assert result.n_pre_months.tolist() == [60, 60]
-    assert result.n_post_months.tolist() == [60, 60]
-    assert result.residual_dof.tolist() == [105, 105]
-    assert result.step_raw.tolist() == pytest.approx([30, 30], abs=1e-10)
-    assert result.step_adjusted.tolist() == pytest.approx([30, 30], abs=1e-10)
+    assert result.status.tolist() == ["ok"]
+    assert result.transition_year.tolist() == [2012]
+    assert result.n_months.tolist() == [120]
+    assert result.n_pre_months.tolist() == [60]
+    assert result.n_post_months.tolist() == [60]
+    assert result.residual_dof.tolist() == [105]
+    assert result.step_raw.tolist() == pytest.approx([30], abs=1e-10)
+    assert result.step_adjusted.tolist() == pytest.approx([30], abs=1e-10)
     assert result.step_se_raw.lt(1e-10).all()
 
 
 def test_factor_removes_a_known_multiplicative_sensor_step():
     result = evaluate(model_source(constant=True), factors(2.0, fallback=True))
-    assert result.step_raw.tolist() == pytest.approx([10, 10], abs=1e-10)
-    assert result.step_adjusted.tolist() == pytest.approx([0, 0], abs=1e-10)
-    assert result.factor_used.tolist() == [2.0, 2.0]
-    assert result.uses_global_fallback.tolist() == [False, True]
+    assert result.step_raw.tolist() == pytest.approx([10], abs=1e-10)
+    assert result.step_adjusted.tolist() == pytest.approx([0], abs=1e-10)
+    assert result.factor_used.tolist() == [2.0]
+    assert result.uses_global_fallback.tolist() == [True]
 
 
 def test_absent_years_remain_calendar_gaps():
@@ -96,11 +101,11 @@ def test_absent_years_remain_calendar_gaps():
     frame = frame.loc[~frame.year.isin([2010, 2016])]
     result = evaluate(frame)
     assert result.status.eq("ok").all()
-    assert result.n_pre_months.tolist() == [48, 48]
-    assert result.n_post_months.tolist() == [48, 48]
-    assert result.n_pre_years.tolist() == [4, 4]
-    assert result.n_post_years.tolist() == [4, 4]
-    assert result.step_raw.tolist() == pytest.approx([30, 30], abs=1e-10)
+    assert result.n_pre_months.tolist() == [48]
+    assert result.n_post_months.tolist() == [48]
+    assert result.n_pre_years.tolist() == [4]
+    assert result.n_post_years.tolist() == [4]
+    assert result.step_raw.tolist() == pytest.approx([30], abs=1e-10)
 
 
 def test_partial_unknown_months_and_configurable_coverage():
@@ -108,11 +113,11 @@ def test_partial_unknown_months_and_configurable_coverage():
     frame.loc[frame.year.eq(2007), "partial"] = True
     frame.loc[frame.year.eq(2016), "n_unknown_days"] = 1
     result = evaluate(frame)
-    assert result.n_pre_months.tolist() == [48, 48]
-    assert result.n_post_months.tolist() == [48, 48]
-    assert result.step_raw.tolist() == pytest.approx([30, 30], abs=1e-10)
+    assert result.n_pre_months.tolist() == [48]
+    assert result.n_post_months.tolist() == [48]
+    assert result.step_raw.tolist() == pytest.approx([30], abs=1e-10)
     relaxed = evaluate(frame, max_unknown_days=1)
-    assert relaxed.n_post_months.tolist() == [60, 60]
+    assert relaxed.n_post_months.tolist() == [60]
 
 
 def test_insufficient_counts_years_rank_and_missing_factor():
@@ -130,32 +135,55 @@ def test_insufficient_counts_years_rank_and_missing_factor():
 def test_configurable_window_and_exact_minimum():
     result = evaluate(model_source(), window_years=3)
     assert result.status.eq("ok").all()
-    assert result.n_pre_months.tolist() == [36, 36]
-    assert result.n_post_months.tolist() == [36, 36]
-    assert result.n_pre_years.tolist() == [3, 3]
-    assert result.step_raw.tolist() == pytest.approx([30, 30], abs=1e-10)
+    assert result.n_pre_months.tolist() == [36]
+    assert result.n_post_months.tolist() == [36]
+    assert result.n_pre_years.tolist() == [3]
+    assert result.step_raw.tolist() == pytest.approx([30], abs=1e-10)
     smaller = model_source().loc[lambda frame: ~(frame.year.eq(2009) & frame.month.eq(1))]
     assert evaluate(smaller, window_years=3).status.eq("insufficient_data").all()
 
 
-def test_fitted_shuffle_immutability_and_country_global_membership():
-    portugal = model_source()
-    frame = pd.concat([portugal, model_source(constant=True, country="Spain")], ignore_index=True)
-    calibration = pd.concat([factors(), pd.DataFrame(dict(country=["Spain"], factor_used=[2.0]))], ignore_index=True)
-    calibration["uses_global_fallback"] = False
+def test_fitted_shuffle_immutability_and_global_sum_of_cells():
+    portugal = model_source(cell=PT)
+    frame = pd.concat([portugal, model_source(constant=True, cell=ES)], ignore_index=True)
+    calibration = factors()
     before = frame.copy(deep=True)
     result = evaluate(frame, calibration)
     assert_frame_equal(result, evaluate(frame.sample(frac=1, random_state=14), calibration))
     assert_frame_equal(frame, before)
-    assert result.country.tolist() == ["ALL", "Portugal", "Spain"]
-    assert result.step_raw.tolist() == pytest.approx([40, 30, 10], abs=1e-10)
-    assert result.n_months.tolist() == [120, 120, 120]
-    individual = result.loc[result.country.eq("Portugal")].reset_index(drop=True)
-    baseline = evaluate(portugal).loc[lambda table: table.country.eq("Portugal")].reset_index(drop=True)
-    assert_frame_equal(individual, baseline)
-    supplied_global = portugal.assign(country="ALL", cell_days=99999)
-    duplicate_global = evaluate(pd.concat([portugal, supplied_global], ignore_index=True))
-    assert_frame_equal(duplicate_global, evaluate(portugal))
+    # One global row: the cells add up month by month (30 + 10 = 40).
+    assert result.cell.tolist() == [GLOBAL_CELL]
+    assert result.scope.tolist() == ["global"]
+    assert result.step_raw.tolist() == pytest.approx([40], abs=1e-10)
+    assert result.n_months.tolist() == [120]
+    # The same series supplied already summed (cell == GLOBAL_CELL) gives the same fit.
+    total = frame.groupby(["year", "month", "series"], as_index=False).agg(
+        cell_days=("cell_days", "sum"), partial=("partial", "max"), n_unknown_days=("n_unknown_days", "max"))
+    total["cell"] = GLOBAL_CELL
+    assert_frame_equal(evaluate(total, calibration), result)
+
+
+def test_only_valid_cells_are_summed_into_the_global_series():
+    portugal, spain = model_source(cell=PT), model_source(constant=True, cell=ES)
+    spain.loc[spain.year.eq(2008), "partial"] = True
+    result = evaluate(pd.concat([portugal, spain], ignore_index=True))
+    # 12 months of 2008 are valid only in the first cell but are summed with the valid rows only.
+    assert result.n_months.tolist() == [120]
+    assert result.status.tolist() == ["ok"]
+    assert_frame_equal(evaluate(pd.concat([portugal, spain.loc[~spain.year.eq(2008)]], ignore_index=True)), result)
+
+
+def test_mixing_global_series_and_cells_is_rejected():
+    frame = pd.concat([model_source(cell=PT), model_source()], ignore_index=True)
+    with pytest.raises(ValueError, match="GLOBAL_CELL"):
+        evaluate(frame)
+
+
+def test_factor_of_another_cell_is_not_used_and_global_row_is_required():
+    only_cell = pd.DataFrame(dict(cell=[PT], factor_used=[2.0], uses_global_fallback=[False]))
+    result = evaluate(model_source(), only_cell)
+    assert result.status.tolist() == ["missing_factor"]
+    assert result.factor_used.isna().all()
 
 
 @pytest.mark.parametrize("field,value,message", [
@@ -216,6 +244,6 @@ def test_model_based_uncertainty_against_fraction_normal_equations():
     residual_sum = sum((Fraction(value) - sum(coef * number for coef, number in zip(beta, row))) ** 2
                        for row, value in zip(rows, values))
     standard_error = math.sqrt(float(residual_sum / 105 * augmented[2][size + 1]))
-    result = evaluate(frame).loc[lambda table: table.country.eq("Portugal")].iloc[0]
+    result = evaluate(frame).iloc[0]
     assert result.step_raw == pytest.approx(float(beta[2]), abs=1e-9)
     assert result.step_se_raw == pytest.approx(standard_error, abs=1e-9)

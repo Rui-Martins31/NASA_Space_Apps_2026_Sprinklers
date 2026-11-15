@@ -1,36 +1,59 @@
-"""Build isolated MODIS and S-NPP monthly inputs using the L1 calendar rules."""
+"""Build isolated MODIS and S-NPP GLOBAL monthly inputs using the L1 calendar rules."""
 
 import pandas as pd
 
 from .calendar_metrics import (
-    eligible_cell_days, cal_daily, global_day_counts, cal_coverage, cal_monthly,
-    MONTHLY_COLUMNS,
+    eligible_cell_days, cal_coverage, cal_monthly, global_day_counts, month_validity,
 )
-from .common import GRID_DEG, cell_key, parse_dates, require_columns
+from .common import GLOBAL_CELL, GRID_DEG, cell_key, parse_dates, require_columns
 
 
-COLUMNS = MONTHLY_COLUMNS + ["sensor"]
+COLUMNS = ["cell", "year", "month", "series", "cell_days", "partial", "n_unknown_days", "sensor"]
 SNPP_SATELLITES = frozenset({"N", "SNPP", "NPP", "SUOMINPP"})
-REQUIRED = ["country", "instrument", "satellite", "latitude", "longitude",
+REQUIRED = ["instrument", "satellite", "latitude", "longitude",
             "acq_date", "type", "confidence_class"]
 
 
 def _output(frame):
     result = frame.reindex(columns=COLUMNS).copy()
-    for column in ["country", "series", "sensor"]:
+    for column in ["series", "sensor"]:
         result[column] = result[column].astype("object")
-    for column in ["year", "month", "cell_days", "n_unknown_days"]:
+    for column in ["cell", "year", "month", "cell_days", "n_unknown_days"]:
         result[column] = result[column].astype("int64")
     result["partial"] = result.partial.astype(bool)
-    return result.sort_values(["country", "year", "month", "series"]).reset_index(drop=True)
+    return result.sort_values(["cell", "year", "month", "series"]).reset_index(drop=True)
+
+
+def global_series(monthly: pd.DataFrame, validity: pd.DataFrame, series: str, sensor: str) -> pd.DataFrame:
+    """Global monthly series of one sensor from the sparse per-cell L1 monthly counts.
+
+    ``monthly`` is the sparse L1 ``cal_monthly`` table (``cell, year, month,
+    series, cell_days``) and ``validity`` the L1 ``month_validity`` table
+    (``series, year, month, partial, n_unknown_days``). The result is dense
+    over the interval of ``series``: the cell-days of all cells add up per
+    month, months without activity are zero, and ``cell = GLOBAL_CELL``.
+    """
+    require_columns(monthly, ["year", "month", "series", "cell_days"])
+    require_columns(validity, ["series", "year", "month", "partial", "n_unknown_days"])
+    months = validity.loc[validity.series.eq(series), ["year", "month", "partial", "n_unknown_days"]]
+    sums = (monthly.loc[monthly.series.eq(series)].groupby(["year", "month"]).cell_days.sum()
+            .rename("cell_days").reset_index())
+    result = months.merge(sums, on=["year", "month"], how="left", validate="one_to_one")
+    result["cell_days"] = result.cell_days.fillna(0)
+    result["cell"] = GLOBAL_CELL
+    result["series"] = series
+    result["sensor"] = sensor
+    return _output(result)
 
 
 def build_sensor_monthly(df: pd.DataFrame, sensor: str,
                          grid_deg=GRID_DEG) -> pd.DataFrame:
     """Apply the public L1 pipeline to one isolated sensor and acquisition year.
 
-    ``sensor`` records the caller's source-file provenance. S-NPP input accepts
-    the satellite label N and explicit S-NPP name variants. Missing, unknown or
+    The result is the GLOBAL monthly series (``cell = GLOBAL_CELL``: the sum of
+    the cell-days of all cells), the input that HAR-12 needs. ``sensor``
+    records the caller's source-file provenance. S-NPP input accepts the
+    satellite label N and explicit S-NPP name variants. Missing, unknown or
     NOAA-20 satellite labels are rejected before an isolated series is built.
     The original satellite values are preserved while counting cell-days.
 
@@ -61,13 +84,12 @@ def build_sensor_monthly(df: pd.DataFrame, sensor: str,
         raise ValueError("Input must contain at most one acquisition year")
     if not dates.notna().any():
         return _output(pd.DataFrame())
-    source["country"] = source.country.astype("string").fillna("unknown")
-    countries = sorted(source.loc[dates.notna(), "country"].unique())
     compact = eligible_cell_days(source, grid_deg=grid_deg)
-    daily = cal_daily(compact)
     coverage = cal_coverage(global_day_counts(source))
-    monthly = cal_monthly(daily, coverage, countries=countries)
     own_series = "modis" if sensor == "modis" else "viirs"
-    monthly = monthly.loc[monthly.series.eq(own_series)].copy()
-    monthly["sensor"] = sensor
-    return _output(monthly)
+    if len(compact):
+        monthly = cal_monthly(compact, coverage)
+    else:
+        monthly = pd.DataFrame({"year": pd.Series(dtype="int64"), "month": pd.Series(dtype="int64"),
+                                "series": pd.Series(dtype="object"), "cell_days": pd.Series(dtype="int64")})
+    return global_series(monthly, month_validity(coverage), own_series, sensor)

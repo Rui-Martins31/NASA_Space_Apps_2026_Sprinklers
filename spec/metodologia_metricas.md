@@ -62,7 +62,7 @@ Valem para todos os lotes. Se uma função precisar de outro valor, tem de receb
 
 | Convenção | Regra |
 |---|---|
-| Região | `country` (polígonos ficam para mais tarde) |
+| Região | **célula** (`cell`, int64 = `ilat * n_lon + ilon`, ver `common.cell_key`); **já não é `country`**. A grelha dos notebooks é 0,01° (`GRID_DEG`), a biblioteca usa 0,1° por omissão. Linhas globais (antes `country = "ALL"`) têm `cell = -1` (`GLOBAL_CELL`). Tabelas por célula são esparsas (só células com atividade) e levam `ilat, ilon, lat, lon, lat_band`; a ausência dentro do intervalo de cobertura da série vale 0. Ver `data/README.md`. Polígonos ficam para mais tarde |
 | Dia | `acq_date` (já é UTC). O ano é o ano de `acq_date`, o mês é o mês de `acq_date` |
 | Elegível | `type == 0` **e** `confidence_class ∈ {n, h}`. `type` NA, `confidence_class` NA, `l`, e `type ∈ {1,2,3}` ficam **fora** |
 | Grelha | 0.1° (`GRID_DEG = 0.1`), parametrizável (0.25° é a alternativa das user stories) |
@@ -75,6 +75,8 @@ Valem para todos os lotes. Se uma função precisar de outro valor, tem de receb
 | Divisão por zero | resultado **NA** (nunca 0, nunca inf) |
 | Percentagens | 0–100, float |
 | Ordenação | tabelas de saída ordenadas pelas colunas-chave, `reset_index(drop=True)` |
+
+> **Nota (reestruturação por célula).** As secções 5 a 11 foram escritas quando a região era o país. Onde lerem `country`, leiam `cell` (célula da grelha). Mudanças de fundo: (1) as tabelas L1 `l1_cal_monthly`/`l1_cal_annual` passam a esparsas (`cell, year, month, series, cell_days`) e a validade (`partial`, `n_unknown_days`) vai para `l1_meta_month_validity`/`l1_meta_year_validity`; as funções estatísticas recebem a tabela densa antiga via `calendar_metrics.densify_monthly/densify_annual` por fatia de células; (2) CAL-10/11 e ADD-04 deixam de se publicar; (3) HAR-12, HAR-13/14 e o fator global de HAR-06 são globais (`cell = -1`); ESP-02/03/06 e as linhas globais de ADD-05/06 são estatísticas de população sobre todas as células; (4) as células de fronteira contam uma vez (antes contavam uma vez por país), por isso os totais podem descer; linhas com coordenadas inválidas ficam fora de todas as tabelas por célula; (5) uma estatística de uma área com várias células não se obtém combinando as das células (anomalia, z-score, percentil não são aditivos): o backend devolve os valores por célula ou uma média, aproximada.
 
 **Cuidado com a grelha (já medido):** `floor((lat+90)/0.1)` em vírgula flutuante **dá o resultado errado** em muitas coordenadas reais (`floor((-89.9+90)/0.1)` dá 0 em vez de 1; só com duas casas decimais há 643 casos entre −89.99 e 89.99). O FIRMS tem no máximo 4 casas decimais, por isso a implementação de referência trabalha em inteiros:
 

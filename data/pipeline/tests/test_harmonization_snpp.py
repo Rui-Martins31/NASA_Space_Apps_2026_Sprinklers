@@ -6,11 +6,12 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
-from metrics.harmonization_snpp import COLUMNS, build_sensor_monthly
+from metrics.common import GLOBAL_CELL
+from metrics.harmonization_snpp import COLUMNS, build_sensor_monthly, global_series
 
 
 def records(*changes):
-    base = dict(country="Portugal", instrument="VIIRS", satellite="N",
+    base = dict(instrument="VIIRS", satellite="N",
                 latitude=40.0, longitude=-8.0, acq_date="2012-02-01",
                 type=0, confidence_class="h")
     frame = pd.DataFrame([base | change for change in changes])
@@ -24,20 +25,30 @@ def test_manual_snpp_month_and_provenance():
                      dict(acq_date="2012-02-29", latitude=41),
                      dict(acq_date="2012-02-29", confidence_class="l"))
     result = build_sensor_monthly(source, "viirs-snpp")
-    assert result.iloc[0].tolist() == ["Portugal", 2012, 2, "viirs", 3, False, 27, "viirs-snpp"]
+    assert result.iloc[0].tolist() == [GLOBAL_CELL, 2012, 2, "viirs", 3, False, 27, "viirs-snpp"]
     assert result.columns.tolist() == COLUMNS
 
 
-def test_modis_satellite_union_and_country_with_no_eligible_records():
+def test_modis_satellite_union_and_cells_add_into_one_global_series():
     source = records(dict(instrument="MODIS", satellite="Terra"),
                      dict(instrument="MODIS", satellite="Aqua"),
                      dict(instrument="MODIS", satellite="Terra", acq_date="2012-02-29"),
-                     dict(instrument="MODIS", satellite="Terra", country="Spain", type=None))
+                     dict(instrument="MODIS", satellite="Terra", latitude=41.0),
+                     dict(instrument="MODIS", satellite="Terra", latitude=42.0, type=None))
     result = build_sensor_monthly(source, "modis")
-    assert result.country.tolist() == ["Portugal", "Spain"]
-    assert result.cell_days.tolist() == [2, 0]
-    assert result.series.tolist() == ["modis", "modis"]
-    assert result.sensor.tolist() == ["modis", "modis"]
+    assert result.cell.tolist() == [GLOBAL_CELL]
+    # Terra and Aqua on one cell-day count once (1), plus 29 Feb (1) and the second cell (1).
+    assert result.cell_days.tolist() == [3]
+    assert result.series.tolist() == ["modis"]
+    assert result.sensor.tolist() == ["modis"]
+
+
+def test_country_column_is_no_longer_required():
+    source = records({}, dict(acq_date="2012-02-29"))
+    assert "country" not in source
+    assert build_sensor_monthly(source, "viirs-snpp").cell_days.tolist() == [2]
+    assert_frame_equal(build_sensor_monthly(source.assign(country="Portugal"), "viirs-snpp"),
+                       build_sensor_monthly(source, "viirs-snpp"))
 
 
 def test_dense_calendar_and_partial_endpoint_months():
@@ -112,14 +123,44 @@ def test_grid_parameter_changes_cell_counts():
 
 
 def test_shuffle_immutability_and_categorical_keys():
-    source = records({}, dict(country="Spain"), dict(acq_date="2012-02-29"))
+    source = records({}, dict(latitude=41.0), dict(acq_date="2012-02-29"))
     original = source.copy(deep=True)
     expected = build_sensor_monthly(source, "viirs-snpp")
     assert_frame_equal(expected, build_sensor_monthly(source.sample(frac=1, random_state=37), "viirs-snpp"))
     assert_frame_equal(source, original)
-    source["country"] = pd.Categorical(source.country, categories=["Portugal", "Spain", "Unused"])
     source["instrument"] = pd.Categorical(source.instrument, categories=["VIIRS", "MODIS"])
     with warnings.catch_warnings():
         warnings.simplefilter("error", FutureWarning)
         actual = build_sensor_monthly(source, "viirs-snpp")
     assert_frame_equal(actual, expected)
+
+
+def test_global_series_sums_cells_and_is_dense_over_the_series_interval():
+    """Synthetic L1 inputs (no calendar_metrics): the sparse per-cell table becomes one dense global series."""
+    monthly = pd.DataFrame([
+        [7, 2012, 1, "viirs", 2], [9, 2012, 1, "viirs", 3], [7, 2012, 3, "viirs", 4],
+        [7, 2012, 1, "modis", 99], [7, 2012, 1, "combined", 99],
+    ], columns=["cell", "year", "month", "series", "cell_days"])
+    validity = pd.DataFrame([
+        ["viirs", 2012, 1, True, 5], ["viirs", 2012, 2, False, 0], ["viirs", 2012, 3, True, 1],
+        ["modis", 2012, 1, False, 0],
+    ], columns=["series", "year", "month", "partial", "n_unknown_days"])
+    result = global_series(monthly, validity, "viirs", "viirs-snpp")
+    assert result.columns.tolist() == COLUMNS
+    assert result.values.tolist() == [
+        [GLOBAL_CELL, 2012, 1, "viirs", 5, True, 5, "viirs-snpp"],
+        [GLOBAL_CELL, 2012, 2, "viirs", 0, False, 0, "viirs-snpp"],
+        [GLOBAL_CELL, 2012, 3, "viirs", 4, True, 1, "viirs-snpp"],
+    ]
+    assert result.cell.dtype == "int64" and result.partial.dtype == "bool"
+
+
+def test_global_series_without_activity_keeps_zero_months_and_requires_columns():
+    validity = pd.DataFrame([["viirs", 2012, 2, False, 0]], columns=["series", "year", "month", "partial", "n_unknown_days"])
+    empty = pd.DataFrame({"year": pd.Series(dtype="int64"), "month": pd.Series(dtype="int64"),
+                          "series": pd.Series(dtype="object"), "cell_days": pd.Series(dtype="int64")})
+    assert global_series(empty, validity, "viirs", "viirs-snpp").cell_days.tolist() == [0]
+    with pytest.raises(ValueError, match="cell_days"):
+        global_series(empty.drop(columns="cell_days"), validity, "viirs", "viirs-snpp")
+    with pytest.raises(ValueError, match="partial"):
+        global_series(empty, validity.drop(columns="partial"), "viirs", "viirs-snpp")

@@ -21,7 +21,7 @@ def his03_anomaly_abs(monthly: pd.DataFrame, ref_start=None, ref_end=None,
     summary = pool.groupby(keys, observed=True, dropna=False).agg(
         ref_total=("cell_days", "sum"), n_pool=("year", "nunique"),
     ).reset_index()
-    # L1 has one row per country-series-year-month. The year join also handles
+    # L1 has one row per cell-series-year-month. The year join also handles
     # evaluated rows outside the reference interval without excluding a value.
     own = pool[keys + ["year", "cell_days"]].rename(columns={"cell_days": "own_value"})
     result = source.merge(summary, how="left", on=keys).merge(own, how="left", on=keys + ["year"])
