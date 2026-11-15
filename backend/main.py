@@ -34,18 +34,22 @@ def create_app(database):
 
     @app.errorhandler(404)
     def unknown_endpoint(_error):
-        # Any URL with no route gets a JSON error.
-        return jsonify({"error": f"unknown endpoint {request.path}"}), 404
+        # Any URL with no route gets a JSON error; a metric of the CSV that is
+        # not served yet says so, for the app to show "not available yet".
+        name = request.path.removeprefix("/api/")
+        if name in config.METRICS_NOT_AVAILABLE:
+            message = config.ERROR_NOT_AVAILABLE.format(metric=name)
+        else:
+            message = config.ERROR_UNKNOWN_ENDPOINT.format(path=request.path)
+        return jsonify({"error": message}), 404
 
     @app.errorhandler(405)
     def method_not_allowed(error):
         # The URL exists but not for this method (e.g. GET /api/calendar).
         allowed = sorted(set(error.valid_methods or []) - {"HEAD", "OPTIONS"})
-        return (
-            jsonify({"error": f"{request.method} is not allowed on {request.path}; use {', '.join(allowed)}"}),
-            405,
-            {"Allow": ", ".join(allowed)}
-        )
+        message = config.ERROR_WRONG_METHOD.format(method=request.method, path=request.path,
+                                                   allowed=", ".join(allowed))
+        return jsonify({"error": message}), 405, {"Allow": ", ".join(allowed)}
 
     def handle(feature, build_response):
         try:
@@ -97,6 +101,16 @@ def create_app(database):
             }
 
         return handle("anomalies", build)
+
+    # One endpoint per metric: "cal_05" in config.METRICS is POST /api/cal_05,
+    # with "feature": "cal_05", answered by features.cal_05.
+    for name in config.METRICS:
+        compute = getattr(features, name)
+
+        def api_metric(name=name, compute=compute):
+            return handle(name, lambda query: compute(database, query))
+
+        app.add_url_rule(f"/api/{name}", endpoint=name, view_func=api_metric, methods=["POST"])
 
     @app.get("/api/hotspots.csv")
     def api_hotspots_csv():

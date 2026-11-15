@@ -9,7 +9,9 @@ something recognisable:
     and peak in July-September;
   - the large fire events of 2003-2025 are added as dense clusters in the
     right place and month (Pedrogao Grande, Jun 2017; Oct 2017; Monchique 2018;
-    Serra da Estrela 2022; ...).
+    Serra da Estrela 2022; ...);
+  - the sensors follow the real record: MODIS Terra from the start, Aqua
+    from July 2002, VIIRS (NOAA-20) from 2018, so the 2002 and 2018 steps show.
 
 The random seed is fixed, so the file is always the same.
 
@@ -30,6 +32,13 @@ from src import config
 OUTPUT = config.MOCK_DATA_DIR / config.MOCK_HOTSPOTS_FILE
 START = datetime(2000, 11, 1)
 N_BACKGROUND = 20_000
+
+AQUA_START = datetime(2002, 7, 4)
+VIIRS_START = datetime(2018, 1, 1)
+VIIRS_SHARE = 0.6  # from 2018, VIIRS (375 m) sees more of the fires than MODIS (1 km)
+
+COLUMNS = ["lat", "lon", "date_time", "confidence_class",
+           "instrument", "satellite", "type", "daynight", "frp", "pixel_area_km2"]
 
 # Rough outline of mainland Portugal, (lon, lat), clockwise from Caminha.
 PORTUGAL = [
@@ -130,13 +139,31 @@ def overpass_time(rng, day):
     return day + timedelta(hours=hour, minutes=rng.randrange(60))
 
 
+def detection_details(rng, dt, big_fire):
+    """instrument, satellite, type, daynight, frp, pixel_area_km2 of one detection."""
+    if dt >= VIIRS_START and rng.random() < VIIRS_SHARE:
+        instrument, satellite, pixel_area = "VIIRS", "N20", rng.uniform(0.14, 0.55)
+    else:
+        satellite = "Terra" if dt < AQUA_START or rng.random() < 0.5 else "Aqua"
+        instrument, pixel_area = "MODIS", rng.uniform(1.0, 4.5)
+    # 0 vegetation, 2 other static land source, 3 offshore; "" = unknown
+    fire_type = rng.choices([0, 2, 3, ""], weights=[93, 4, 1, 2])[0]
+    daynight = "D" if 6 <= dt.hour < 18 else "N"
+    if rng.random() < 0.03:
+        frp = ""  # FRP is sometimes missing
+    else:
+        frp = round(rng.lognormvariate(3.4 if big_fire else 2.4, 1.0), 1)
+    return instrument, satellite, fire_type, daynight, frp, round(pixel_area, 3)
+
+
 def rows(rng):
     weights = [r[3] for r in REGIONS]
     for _ in range(N_BACKGROUND):
         lat, lon, spread, _w = rng.choices(REGIONS, weights=weights)[0]
         dt = background_date(rng)
         yield (*point_near(rng, lat, lon, spread), dt,
-               rng.choices(["low", "nominal", "high"], weights=[3, 5, 2])[0])
+               rng.choices(["low", "nominal", "high"], weights=[3, 5, 2])[0],
+               *detection_details(rng, dt, big_fire=False))
 
     for _name, year, month, first_day, days, lat, lon, spread, n in EVENTS:
         start = datetime(year, month, first_day)
@@ -144,9 +171,11 @@ def rows(rng):
             continue
         for _ in range(n):
             day = start + timedelta(days=min(int(rng.expovariate(2 / days)), days - 1))
+            dt = overpass_time(rng, day)
             # big fires burn hot: more high-confidence detections
-            yield (*point_near(rng, lat, lon, spread), overpass_time(rng, day),
-                   rng.choices(["low", "nominal", "high"], weights=[1, 4, 5])[0])
+            yield (*point_near(rng, lat, lon, spread), dt,
+                   rng.choices(["low", "nominal", "high"], weights=[1, 4, 5])[0],
+                   *detection_details(rng, dt, big_fire=True))
 
 
 def main():
@@ -157,9 +186,9 @@ def main():
     rng.shuffle(data)
     with open(OUTPUT, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["lat", "lon", "date_time", "confidence_class"])
-        for lat, lon, dt, confidence in data:
-            writer.writerow([round(lat, 4), round(lon, 4), dt.isoformat(timespec="minutes"), confidence])
+        writer.writerow(COLUMNS)
+        for lat, lon, dt, *details in data:
+            writer.writerow([round(lat, 4), round(lon, 4), dt.isoformat(timespec="minutes"), *details])
     print(f"Wrote {len(data)} hotspots ({N_BACKGROUND} background + "
           f"{len(data) - N_BACKGROUND} from {len(EVENTS)} fire events) to {OUTPUT}")
 
