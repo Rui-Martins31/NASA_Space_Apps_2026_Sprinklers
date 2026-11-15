@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.circle_geometry import bounding_box, distance_km, in_box
+from src.circle_geometry import bounding_box, chunks_in_circle, distance_km, in_box, in_circle
 from src.config import EARTH_RADIUS_KM
 
 
@@ -51,6 +51,31 @@ class BoundingBoxTest(unittest.TestCase):
     def test_pole_takes_every_longitude(self):
         box = bounding_box(85.0, 0.0, 800)
         self.assertEqual((box["lat_max"], box["lon_min"], box["lon_max"]), (90, -180, 180))
+
+
+class ChunksInCircleTest(unittest.TestCase):
+    """chunks_in_circle counts a row at a time; it must match testing every chunk centre."""
+
+    SIZE = 0.1  # coarse, so testing every chunk of the box stays fast
+
+    def every_chunk(self, query):
+        n_rows, n_cols = round(180 / self.SIZE), round(360 / self.SIZE)
+        box = bounding_box(query["lat"], query["lon"], query["radius"])
+        return sum(in_circle(query, lat, lon)
+                   for lat in (-90 + (r + 0.5) * self.SIZE for r in range(n_rows))
+                   if box["lat_min"] <= lat <= box["lat_max"]
+                   for lon in (-180 + (c + 0.5) * self.SIZE for c in range(n_cols))
+                   if in_box(box, lat, lon))
+
+    def test_matches_testing_every_chunk(self):
+        for lat, lon, r in [(38.72, -9.14, 50), (-17.0, 179.95, 100), (65.0, 25.0, 150), (88.0, 40.0, 300)]:
+            query = {"lat": lat, "lon": lon, "radius": r}
+            with self.subTest(circle=query):
+                self.assertEqual(chunks_in_circle(query, self.SIZE), self.every_chunk(query))
+
+    def test_circle_between_chunk_centres(self):
+        # 1 km around a point 5 km from any centre of the 0.1° grid holds no chunk.
+        self.assertEqual(chunks_in_circle({"lat": 38.70, "lon": -9.10, "radius": 1}, self.SIZE), 0)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 """The pipeline's database. Not connected yet: its schema is still being decided.
 
-When it is, implement the three methods described in database/__init__.py
+When it is, implement the methods described in database/__init__.py
 here. Each is one range query on lat and lon (plus month or date_time), for
 example in MongoDB:
 
