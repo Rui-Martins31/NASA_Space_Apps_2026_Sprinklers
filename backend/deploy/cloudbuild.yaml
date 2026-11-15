@@ -1,0 +1,8 @@
+# Cloud Build: build the image from deploy/Dockerfile and push it to Artifact Registry.
+# Called by deploy.sh, which passes the image name in _IMAGE.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "deploy/Dockerfile", "-t", "$_IMAGE", "."]
+
+images:
+  - "$_IMAGE"
