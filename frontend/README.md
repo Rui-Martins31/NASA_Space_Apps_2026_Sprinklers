@@ -1,4 +1,4 @@
-# FireCal: harmonized MODIS + VIIRS hotspot calendar
+# Sprinklers: harmonized MODIS + VIIRS hotspot calendar
 
 Frontend for our NASA Space Apps 2026 entry ("Harmonization of MODIS and VIIRS Hot Spots").
 React + Vite + TypeScript, with a MapLibre globe.
