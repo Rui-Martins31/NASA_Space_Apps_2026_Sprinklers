@@ -8,7 +8,7 @@ import type { Lang } from '../i18n'
 
 export interface MetricDef {
   id: string // "CAL-05"
-  code: string // "cal-05" = backend feature name
+  code: string // "cal_05" = backend feature name and endpoint
   category: string
   name: string
   description: string
@@ -62,7 +62,7 @@ export const METRICS: MetricDef[] = (() => {
       const get = (name: string) => (col(name) >= 0 ? (r[col(name)] ?? '').trim() : '')
       return {
         id: get('id'),
-        code: get('id').toLowerCase(),
+        code: get('id').toLowerCase().replace(/-/g, '_'),
         category: get('categoria'),
         name: get('nome_metrica'),
         description: get('descricao'),
@@ -103,25 +103,48 @@ export const metricName = (m: MetricDef, lang: Lang) => (lang === 'en' && m.name
 export const metricDescription = (m: MetricDef, lang: Lang) => (lang === 'en' && m.descriptionEn ? m.descriptionEn : m.description)
 
 // ---------------------------------------------------------------------------
-// Shape of `value` in the backend response, per metric (agreed with the backend).
-// Anything not listed is a plain number.
+// The shape of `value` is recognised from the value itself (see MetricsView),
+// so a metric that changes shape on the backend still displays.
+// This list is only used to build fake values (VITE_USE_MOCK=true).
 
-export type MetricKind = 'number' | 'month' | 'year' | 'date' | 'series12' | 'band12' | 'breakdown' | 'interval'
+export type MetricKind =
+  | 'number'
+  | 'month'
+  | 'year'
+  | 'date'
+  | 'series12'
+  | 'band12'
+  | 'breakdown'
+  | 'interval'
+  | 'perMonth'
+  | 'perDay'
+  | 'perYear'
 
 const KIND: Record<string, MetricKind> = {
-  'cal-06': 'month', // {year, month, count}
-  'cal-07': 'year', // {year, count}
-  'cal-11': 'date', // {date, count}
-  'obs-07': 'date',
-  'cal-12': 'series12', // [12 numbers]
-  'his-01': 'series12',
-  'his-02': 'band12', // [12 × {low, high}]
-  'obs-01': 'breakdown', // [{key, value}]
-  'obs-02': 'breakdown',
-  'obs-04': 'breakdown',
-  'obs-09': 'breakdown',
-  'har-06': 'interval', // {value, low, high}
-  'har-07': 'interval',
+  cal_02: 'perDay', // [{date, value}]
+  cal_03: 'perMonth', // [{year, month, value}]
+  cal_04: 'perYear', // [{year, value}]
+  cal_06: 'month', // {year, month, count}
+  cal_07: 'year', // {year, count}
+  cal_09: 'perMonth',
+  cal_11: 'date', // {date, count}
+  cal_12: 'series12', // [12 numbers]
+  his_01: 'series12',
+  his_02: 'band12', // [12 × {low, high}]
+  his_03: 'perMonth',
+  his_04: 'perMonth',
+  his_05: 'perMonth',
+  his_06: 'perMonth',
+  his_07: 'perMonth',
+  his_08: 'perMonth',
+  his_09: 'perYear',
+  obs_01: 'breakdown', // [{key, value}]
+  obs_02: 'breakdown',
+  obs_04: 'breakdown',
+  obs_07: 'date',
+  obs_09: 'breakdown',
+  har_06: 'interval', // {value, low, high}
+  har_07: 'interval',
 }
 
 export const metricKind = (code: string): MetricKind => KIND[code] ?? 'number'

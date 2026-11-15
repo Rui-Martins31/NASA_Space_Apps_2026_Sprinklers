@@ -9,7 +9,6 @@ import {
   METRICS,
   categoryLabel,
   metricDescription,
-  metricKind,
   metricName,
   priorityLabel,
   type MetricDef,
@@ -48,6 +47,77 @@ function Bars({ values, lang, band }: { values: (number | { low: number; high: n
   )
 }
 
+type Point = { label: string; value: number | null }
+
+/** Line for a time series (per day / month / year). Values come from the backend as they are. */
+function Series({ points, lang }: { points: Point[]; lang: Lang }) {
+  const vals = points.map((p) => p.value)
+  const nums = vals.filter((v): v is number => v !== null)
+  if (!nums.length) return null
+  const min = Math.min(0, ...nums)
+  const max = Math.max(...nums, min + 1e-9)
+  const W = 400
+  const H = 56
+  const x = (i: number) => (points.length === 1 ? W / 2 : (i / (points.length - 1)) * W)
+  const y = (v: number) => H - 2 - ((v - min) / (max - min)) * (H - 4)
+  let d = ''
+  let pen = false
+  vals.forEach((v, i) => {
+    if (v === null) pen = false
+    else {
+      d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`
+      pen = true
+    }
+  })
+  let last = points.length - 1
+  while (last > 0 && points[last].value === null) last--
+  return (
+    <div>
+      <div className="flex items-baseline gap-1.5">
+        <span className="font-mono text-lg text-fg">{num(points[last].value as number, lang)}</span>
+        <span className="text-xs text-fg-muted">{points[last].label}</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="mt-1 h-14 w-full" preserveAspectRatio="none" role="img" aria-label={`${points[0].label} – ${points[points.length - 1].label}`}>
+        {min < 0 && <line x1="0" x2={W} y1={y(0)} y2={y(0)} stroke="#8b95a5" strokeWidth="0.5" />}
+        <path d={d} fill="none" stroke="#ff6b1a" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div className="flex justify-between font-mono text-[10px] text-fg-muted">
+        <span>{points[0].label}</span>
+        <span>
+          {num(min, lang)} – {num(max, lang)}
+        </span>
+        <span>{points[points.length - 1].label}</span>
+      </div>
+    </div>
+  )
+}
+
+type Shape = 'number' | 'month' | 'year' | 'date' | 'series12' | 'band12' | 'breakdown' | 'interval' | 'perMonth' | 'perDay' | 'perYear' | 'other'
+
+/** Recognise how to draw a value from its own shape. */
+function shapeOf(v: unknown): Shape {
+  if (typeof v === 'number') return 'number'
+  if (Array.isArray(v)) {
+    const f = v.find((x) => x !== null)
+    if (v.length === 12 && v.every((x) => x === null || typeof x === 'number')) return 'series12'
+    if (isObj(f)) {
+      if ('low' in f && 'high' in f) return 'band12'
+      if ('key' in f) return 'breakdown'
+      if ('date' in f && 'value' in f) return 'perDay'
+      if ('year' in f && 'month' in f && 'value' in f) return 'perMonth'
+      if ('year' in f && 'value' in f) return 'perYear'
+    }
+    return 'other'
+  }
+  if (isObj(v)) {
+    if ('low' in v && 'high' in v) return 'interval'
+    if ('year' in v && 'month' in v) return 'month'
+    if ('date' in v) return 'date'
+    if ('year' in v) return 'year'
+  }
+  return 'other'
+}
+
 function Value({ m, r, lang }: { m: MetricDef; r: Extract<MetricResult, { status: 'ok' }>; lang: Lang }) {
   const t = useT()
   const { value, unit, note } = r.data
@@ -64,7 +134,7 @@ function Value({ m, r, lang }: { m: MetricDef; r: Extract<MetricResult, { status
     )
 
   let body: ReactNode
-  const kind = metricKind(m.code)
+  const kind = shapeOf(value)
   try {
     if (kind === 'month' && isObj(value)) {
       body = (
@@ -88,8 +158,15 @@ function Value({ m, r, lang }: { m: MetricDef; r: Extract<MetricResult, { status
           <span className={small}>{num(Number(value.count ?? 0), lang)}</span>
         </>
       )
+    } else if ((kind === 'perMonth' || kind === 'perDay' || kind === 'perYear') && Array.isArray(value)) {
+      const points: Point[] = (value as Obj[]).map((it) => ({
+        label:
+          kind === 'perDay' ? String(it.date) : kind === 'perYear' ? String(it.year) : `${monthName(Number(it.month), lang)} ${String(it.year)}`,
+        value: typeof it.value === 'number' ? it.value : null,
+      }))
+      body = <Series points={points} lang={lang} />
     } else if ((kind === 'series12' || kind === 'band12') && Array.isArray(value)) {
-      body = <Bars values={value as (number | { low: number; high: number })[]} lang={lang} band={kind === 'band12'} />
+      body = <Bars values={(value as (number | null | { low: number; high: number })[]).map((v) => v ?? 0)} lang={lang} band={kind === 'band12'} />
     } else if (kind === 'breakdown' && Array.isArray(value)) {
       const items = value as { key: string; value: number }[]
       const total = items.reduce((a, b) => a + Number(b.value), 0) || 1
@@ -124,7 +201,7 @@ function Value({ m, r, lang }: { m: MetricDef; r: Extract<MetricResult, { status
     body = <span className="font-mono text-xs text-fg">{JSON.stringify(value)}</span>
   }
 
-  const block = kind === 'breakdown' || kind === 'series12' || kind === 'band12'
+  const block = ['breakdown', 'series12', 'band12', 'perMonth', 'perDay', 'perYear'].includes(kind)
   return (
     <div>
       {block ? (

@@ -1,4 +1,4 @@
-// One request per metric: POST /api/<code> with the usual body.
+// One request per metric: POST /api/<code> (e.g. /api/cal_05) with the usual body.
 // The backend answers { feature, value, unit?, note? }.
 // A 404 means the backend does not offer that metric yet.
 import { usingMock } from './client'
@@ -56,10 +56,9 @@ function rng(seed: number) {
   }
 }
 
-const MOCK_MISSING = new Set(['esp-05', 'esp-06', 'qa-06', 'qa-07', 'har-13', 'har-14'])
+const MOCK_MISSING = new Set(['esp_05', 'qa_01', 'qa_06', 'qa_07', 'har_12'])
 const MOCK_NULL: Record<string, string> = {
-  'qa-05': 'Sem metadados de cobertura para esta região',
-  'his-10': 'Menos de 10 anos completos no período',
+  cal_07: 'no complete year in the period',
 }
 
 async function mockMetric(code: string, q: AreaQuery): Promise<MetricResponse> {
@@ -72,7 +71,25 @@ async function mockMetric(code: string, q: AreaQuery): Promise<MetricResponse> {
   const scale = (q.radiusKm / 25) ** 2
   const season = [0.2, 0.3, 1, 0.8, 0.6, 3, 6, 9, 5, 2, 0.5, 0.3]
 
+  const y0 = Number(q.dateFrom.slice(0, 4))
+  const y1 = Number(q.dateTo.slice(0, 4))
   switch (metricKind(code)) {
+    case 'perYear':
+      return { feature: code, value: Array.from({ length: y1 - y0 + 1 }, (_, i) => ({ year: y0 + i, value: Math.round(r() * 200 * scale) })) }
+    case 'perMonth': {
+      const out = []
+      for (let y = y0; y <= y1; y++) for (let m = 1; m <= 12; m++) out.push({ year: y, month: m, value: r() < 0.03 ? null : Math.round(season[m - 1] * scale * r() * 20) / 10 })
+      return { feature: code, value: out }
+    }
+    case 'perDay': {
+      const out = []
+      const end = new Date(q.dateTo).getTime()
+      for (let t = new Date(q.dateFrom).getTime(); t <= end; t += 86_400_000) {
+        const d = new Date(t)
+        out.push({ date: d.toISOString().slice(0, 10), value: r() < season[d.getUTCMonth()] / 12 ? Math.round(r() * 8 * scale) : 0 })
+      }
+      return { feature: code, value: out }
+    }
     case 'month':
       return { feature: code, value: { year: 2017, month: 6, count: Math.round(900 * scale) } }
     case 'year':
@@ -87,9 +104,9 @@ async function mockMetric(code: string, q: AreaQuery): Promise<MetricResponse> {
         value: season.map((v) => ({ low: Math.round(v * scale * 1.5), high: Math.round(v * scale * 12) })),
       }
     case 'breakdown':
-      if (code === 'obs-04')
+      if (code === 'obs_04')
         return { feature: code, value: [{ key: 'D', value: Math.round(1800 * scale) }, { key: 'N', value: Math.round(700 * scale) }] }
-      if (code === 'obs-02')
+      if (code === 'obs_02')
         return {
           feature: code,
           value: [
@@ -101,7 +118,7 @@ async function mockMetric(code: string, q: AreaQuery): Promise<MetricResponse> {
             { key: 'VIIRS · high', value: Math.round(380 * scale) },
           ],
         }
-      if (code === 'obs-09')
+      if (code === 'obs_09')
         return {
           feature: code,
           value: [
@@ -124,21 +141,21 @@ async function mockMetric(code: string, q: AreaQuery): Promise<MetricResponse> {
       return { feature: code, value: { value: 1.82, low: 1.61, high: 2.05 }, unit: 'multiplicador' }
     default: {
       const base: Record<string, [number, string?]> = {
-        'cal-01': [3158 * scale],
-        'cal-05': [3158 * scale],
-        'cal-08': [125 * scale, 'Média de 25 anos completos (2001–2025)'],
-        'cal-10': [612 * scale],
-        'his-03': [-(r() * 4)],
-        'his-04': [-(r() * 80)],
-        'his-05': [-(r() * 1.5)],
-        'his-06': [r() * 100],
-        'his-09': [Math.round(14 * r())],
-        'esp-01': [(3158 * scale) / ((Math.PI * q.radiusKm ** 2) / 1000)],
-        'har-04': [0.87],
-        'har-05': [0.84],
-        'har-02': [0.41],
-        'qa-01': [99.6],
-        'qa-02': [92.3],
+        cal_01: [3158 * scale],
+        cal_05: [3158 * scale],
+        cal_08: [125 * scale, 'Média de 25 anos completos (2001–2025)'],
+        cal_10: [612 * scale],
+        his_03: [-(r() * 4)],
+        his_04: [-(r() * 80)],
+        his_05: [-(r() * 1.5)],
+        his_06: [r() * 100],
+        his_09: [Math.round(14 * r())],
+        esp_01: [(3158 * scale) / ((Math.PI * q.radiusKm ** 2) / 1000)],
+        har_04: [0.87],
+        har_05: [0.84],
+        har_02: [0.41],
+        qa_01: [99.6],
+        qa_02: [92.3],
       }
       const [v, note] = base[code] ?? [Math.round(r() * 1000 * Math.max(1, scale))]
       return { feature: code, value: Number(v), note }

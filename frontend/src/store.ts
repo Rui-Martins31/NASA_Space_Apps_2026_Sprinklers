@@ -34,7 +34,8 @@ export type MetricResult =
 function initialMetrics(): string[] {
   try {
     const saved = JSON.parse(localStorage.getItem('firecal-metrics') ?? 'null')
-    if (Array.isArray(saved)) return saved
+    // older versions saved codes with a hyphen (cal-05); the backend uses cal_05
+    if (Array.isArray(saved)) return saved.map((c) => String(c).replace(/-/g, '_'))
   } catch {
     /* storage not available */
   }
