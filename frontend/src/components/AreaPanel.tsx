@@ -85,7 +85,7 @@ function Card({ label, children, sub }: { label: ReactNode; children: ReactNode;
 
 export default function AreaPanel() {
   const t = useT()
-  const { place, radiusKm, dateFrom, dateTo, status, calendar, anomalies, lang } = useApp()
+  const { place, radiusKm, dateFrom, dateTo, status, calendar, anomalies, lang, hotspotTotal, hotspotTotalStatus } = useApp()
   const { setRadius, setDates, analyze } = useApp.getState()
   if (!place) return null
 
@@ -181,7 +181,13 @@ export default function AreaPanel() {
           {/* Summary cards (W5): consistent with the calendar */}
           <div className="grid grid-cols-2 gap-px bg-line">
             <Card label={t('kpi.total')} sub={t('kpi.totalSub')}>
-              <NumberFlow value={sum.total} />
+              {hotspotTotalStatus === 'ready' && hotspotTotal !== null ? (
+                <NumberFlow value={hotspotTotal} />
+              ) : hotspotTotalStatus === 'loading' ? (
+                <CircleNotch size={20} className="mt-1.5 animate-spin text-fg-muted" />
+              ) : (
+                '—'
+              )}
             </Card>
             <Card
               label={t('kpi.peakMonth')}

@@ -139,7 +139,7 @@ const SEQ = ['#00224e', '#2a3f6c', '#4f5a6f', '#727274', '#988e72', '#c3b369', '
 // Diverging for anomalies, tuned for a dark background: blue below, neutral, ember above
 const DIV = ['#6aa8ff', '#3f74c0', '#2a4566', '#2a2f38', '#6e3420', '#b5501d', '#ff7a2e']
 
-export const fmt = (n: number) => Math.round(n).toLocaleString('en')
+export const fmt = (n: number) => (Math.round(n) || 0).toLocaleString('en') // "|| 0" avoids showing -0
 const fmtSigned = (n: number) => `${n > 0 ? '+' : ''}${fmt(n)}`
 
 export function calendarScale(cal: CalendarEntry[], kind: 'absolute' | 'relative' | 'anomaly', means: number[]): CalendarScaleInfo {

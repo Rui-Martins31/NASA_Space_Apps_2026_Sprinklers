@@ -114,7 +114,7 @@ export default function AnalysesMenu() {
     const cal = useApp.getState().calendar
     if (!cal) return win.close()
     const means = referenceMeans(useApp.getState().anomalies, cal).means
-    openReport(cal, { title: t('report.title'), place: place.label, radiusKm, dateFrom, dateTo, lang }, calendarScale, DATA_START, means, win)
+    openReport(cal, { title: t('report.title'), place: place.label, radiusKm, dateFrom, dateTo, lang }, calendarScale, DATA_START, means, win, useApp.getState().hotspotTotal)
   }
 
   const analyses: Item[] = [

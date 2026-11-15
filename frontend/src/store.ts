@@ -2,7 +2,7 @@
 // with useApp((s) => s.something) and call actions like useApp.getState().analyze().
 import { create } from 'zustand'
 import { toast } from 'sonner'
-import { fetchFeature } from './api/client'
+import { countHotspots, fetchFeature } from './api/client'
 import { translate, type Lang } from './i18n'
 import { fetchMetric, MetricMissing, type MetricResponse } from './api/metrics'
 import { DEFAULT_SELECTION } from './lib/metricsCatalog'
@@ -60,6 +60,8 @@ interface AppState {
   dateTo: string
 
   status: 'idle' | 'loading' | 'ready'
+  hotspotTotal: number | null // number of hotspots in the area and period (from the hotspots endpoint)
+  hotspotTotalStatus: 'idle' | 'loading' | 'ready' | 'error'
   calendar: CalendarEntry[] | null
   anomalies: AnomalyEntry[] | null
   hotspots: Hotspot[] | null
@@ -106,6 +108,7 @@ function request(s: AppState, extra: Partial<AreaQuery> = {}): AreaQuery {
 }
 
 const noHotspots = { hotspots: null, hotspotWindow: null, replayTime: null, replayPlaying: false }
+const noTotal = { hotspotTotal: null, hotspotTotalStatus: 'idle' as const }
 
 export const useApp = create<AppState>((set, get) => ({
   lang: initialLang(),
@@ -115,6 +118,8 @@ export const useApp = create<AppState>((set, get) => ({
   dateTo: today,
 
   status: 'idle',
+  hotspotTotal: null,
+  hotspotTotalStatus: 'idle',
   calendar: null,
   anomalies: null,
   hotspots: null,
@@ -141,9 +146,9 @@ export const useApp = create<AppState>((set, get) => ({
     set({ lang })
   },
   // A new place or new parameters make old results stale.
-  setPlace: (place) => set({ place, status: 'idle', calendar: null, anomalies: null, view: null, ...noHotspots }),
-  setRadius: (radiusKm) => set({ radiusKm, status: 'idle', ...noHotspots }),
-  setDates: (dateFrom, dateTo) => set({ dateFrom, dateTo, status: 'idle', ...noHotspots }),
+  setPlace: (place) => set({ place, status: 'idle', calendar: null, anomalies: null, view: null, ...noHotspots, ...noTotal }),
+  setRadius: (radiusKm) => set({ radiusKm, status: 'idle', ...noHotspots, ...noTotal }),
+  setDates: (dateFrom, dateTo) => set({ dateFrom, dateTo, status: 'idle', ...noHotspots, ...noTotal }),
   setBasemap: (basemap) => set({ basemap }),
   setTerrain3d: (terrain3d) => set({ terrain3d }),
   setReplay: (replayTime, playing) => set({ replayTime, replayPlaying: playing ?? (replayTime !== null && get().replayPlaying) }),
@@ -188,8 +193,15 @@ export const useApp = create<AppState>((set, get) => ({
     const s = get()
     if (!s.place) return
     set({ status: 'loading' })
+    // Total hotspots, in parallel with the calendar (it can take longer for big areas)
+    const q = request(s)
+    const key = JSON.stringify(q)
+    set({ hotspotTotal: null, hotspotTotalStatus: 'loading' })
+    countHotspots(q)
+      .then((n) => JSON.stringify(request(get())) === key && set({ hotspotTotal: n, hotspotTotalStatus: 'ready' }))
+      .catch(() => JSON.stringify(request(get())) === key && set({ hotspotTotal: null, hotspotTotalStatus: 'error' }))
     try {
-      const res = await fetchFeature('all', request(s))
+      const res = await fetchFeature('all', q)
       set({ status: 'ready', calendar: res.calendar ?? [], anomalies: res.anomalies ?? [], view: get().view ?? 'calendar' })
     } catch (e) {
       set({ status: 'idle' })

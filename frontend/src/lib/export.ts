@@ -172,6 +172,7 @@ export function openReport(
   dataStart: string,
   means: number[],
   win: Window | null = window.open('', '_blank'),
+  hotspotTotal: number | null = null,
 ) {
   const t = (k: Parameters<typeof translate>[1], v?: Record<string, string | number>) => translate(m.lang, k, v)
   const s = summary(cal)
@@ -201,7 +202,7 @@ export function openReport(
 <h1>${esc(t('report.title'))}</h1>
 <div class="sub">${esc(t('report.area'))}: ${esc(m.place)} · ${m.radiusKm} km &nbsp;|&nbsp; ${esc(t('report.period'))}: ${m.dateFrom} → ${m.dateTo}</div>
 <div class="cards">
-  <div class="card"><span>${esc(t('kpi.total'))}</span><b>${fmt(s.total)}</b></div>
+  <div class="card"><span>${esc(t('kpi.total'))}</span><b>${hotspotTotal === null ? '—' : fmt(hotspotTotal)}</b></div>
   <div class="card"><span>${esc(t('kpi.peakMonth'))}</span><b style="font-size:13px">${esc(peak)}</b></div>
   <div class="card"><span>${esc(t('kpi.avg'))}</span><b>${fmt(s.annualAvg)}</b></div>
   <div class="card"><span>${esc(t('kpi.peakYearLabel'))}</span><b>${s.peakYear?.year ?? '—'}</b></div>

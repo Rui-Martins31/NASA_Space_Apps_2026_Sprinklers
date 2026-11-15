@@ -70,3 +70,35 @@ export async function fetchHotspotsCsv(query: AreaQuery): Promise<string> {
   }
   return res.text()
 }
+
+/**
+ * Number of hotspots in the area and period, counted from GET /api/hotspots.csv
+ * (the same source as the CSV export, so both always agree). The file is read as
+ * a stream and only its line breaks are counted, so nothing large is kept in memory.
+ */
+export async function countHotspots(query: AreaQuery, signal?: AbortSignal): Promise<number> {
+  if (USE_MOCK) {
+    const res = await fetchFeature('hotspots', { ...query, maxPoints: MAX_HOTSPOTS })
+    return res.hotspots?.length ?? 0
+  }
+  const params = new URLSearchParams({
+    lat: String(query.lat),
+    lon: String(query.lon),
+    radius: String(query.radiusKm),
+    date_time_from: `${query.dateFrom}T00:00:00`,
+    date_time_to: `${query.dateTo}T23:59:59`,
+  })
+  const res = await fetch(`/api/hotspots.csv?${params}`, { signal })
+  if (!res.ok || !res.body) throw new Error(`Server error (${res.status})`)
+  const reader = res.body.getReader()
+  let lines = 0
+  let lastByte = 10
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    for (let i = 0; i < value.length; i++) if (value[i] === 10) lines++
+    if (value.length) lastByte = value[value.length - 1]
+  }
+  if (lastByte !== 10) lines++ // last row without a line break
+  return Math.max(0, lines - 1) // minus the header
+}
