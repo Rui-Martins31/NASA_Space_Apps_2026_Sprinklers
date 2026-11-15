@@ -6,7 +6,8 @@ Os dados **não** estão no Git. Ficam numa pasta partilhada do Google Drive:
 Sprinklers/                       <- dono: pedrolobao200207, partilhada com a equipa
 ├── raw/
 │   ├── MODIS_All_Countries/      modis_<ano>_all_countries.zip        (2000-2025, ~30-90 MB cada)
-│   └── VIIRS NOAA-20/            viirs-jpss1_<ano>_all_countries.zip  (2018-2025, ~260-400 MB cada)
+│   ├── VIIRS NOAA-20/            viirs-jpss1_<ano>_all_countries.zip  (2018-2025)
+│   └── VIIRS SNPP/               viirs-snpp_<ano>_all_countries.zip  (2012+, conforme inventário)
 ├── processed/                    Parquet harmonizado, um por sensor e ano (gerado no Colab)
 └── metrics/                      agregados pequenos (gerado no Colab, lido pelo backend)
 ```
@@ -17,7 +18,15 @@ Colunas MODIS (15): `latitude, longitude, brightness, scan, track, acq_date, acq
 confidence, version, bright_t31, frp, daynight, type`. VIIRS usa `bright_ti4`/`bright_ti5` e confiança `l/n/h`
 (ver a skill `firms-active-fire-attributes`). Amostra verificada: `modis_2000` = 163 países, 261 363 linhas.
 
-Notas: não há Suomi NPP (só NOAA-20 a partir de 2018); `viirs-jpss1_2023` está duplicado na Drive (o notebook usa o mais recente).
+Keep the sources separate. NOAA-20 files use `viirs-jpss1` and satellite code
+`N20`. Suomi NPP files use `viirs-snpp` and satellite code `N`. Duplicate
+archives with the same sensor/year are resolved by notebook 01's existing
+discovery rules.
+
+Notebook 02 defaults to MODIS and NOAA-20. Its source selection also controls
+cached partials, daily consolidation, coverage and logs. S-NPP is processed
+separately by notebook 09 for HAR-12. A source/year subset publishes only
+that subset; use a separate validation output folder for pilot runs.
 
 ## Fluxo
 1. No Colab, `data/pipeline/notebooks/01_ingest_harmonize.ipynb` lê os zips de `raw/`, harmoniza e grava `processed/<sensor>_<ano>.parquet` (coluna `country` incluída). Salta o que já existe.

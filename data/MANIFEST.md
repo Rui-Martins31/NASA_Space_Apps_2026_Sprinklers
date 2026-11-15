@@ -6,7 +6,8 @@ Atualizar sempre que se gerarem ficheiros novos no Colab. O notebook 01 também 
 | Pasta | Ficheiros | Anos | Instrumento / satélite | Notas |
 |-------|-----------|------|------------------------|-------|
 | `raw/MODIS_All_Countries` | `modis_<ano>_all_countries.zip` | 2000-2025 | MODIS (Terra, Aqua) | `version` mistura `6.2` e `6.03` em 2000 |
-| `raw/VIIRS NOAA-20` | `viirs-jpss1_<ano>_all_countries.zip` | 2018-2025 | VIIRS (N20) | `viirs-jpss1_2023` duplicado; sem Suomi NPP |
+| `raw/VIIRS NOAA-20` | `viirs-jpss1_<ano>_all_countries.zip` | 2018-2025 | VIIRS (N20) | NOAA-20 reference for notebooks 02–08 |
+| `raw/VIIRS SNPP` | `viirs-snpp_<ano>_all_countries.zip` | 2012+, subject to inventory | VIIRS (N) | Separate HAR-12 inputs in notebook 09 |
 
 Amostra inspecionada: `modis_2000_all_countries.zip` (4 658 057 bytes): 163 CSVs de países, 261 363 linhas, 0 horas inválidas.
 

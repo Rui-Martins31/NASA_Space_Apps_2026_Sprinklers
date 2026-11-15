@@ -269,3 +269,51 @@ def test_year_without_eligible_cells_does_not_break_consolidation(tmp_path):
     assert len(ns["tables"]["l5_esp02_active_cells"]) == 0
     e6 = ns["tables"]["l5_esp06_interannual"]
     assert set(e6.n_cells) <= {0}
+
+
+def test_snpp_files_and_stale_cached_years_never_enter_core_outputs(tmp_path):
+    metrics = write_drive(tmp_path)
+    ns = run_cells(tmp_path)
+    before = {name: frame.copy(deep=True) for name, frame in ns["tables"].items()}
+    snpp = build_processed([dict(country="SNPP_ONLY", instrument="VIIRS", satellite="N",
+                                 latitude=60.0, longitude=10.0, acq_date="2018-03-01")])
+    snpp.to_parquet(tmp_path / "processed/viirs-snpp_2018.parquet", index=False)
+    stale = metrics / "_partial_lote5/viirs-snpp_2018"
+    stale.mkdir()
+    (stale / "_done.json").write_text(json.dumps(dict(sensor="viirs-snpp", year=2018, grid_deg=0.1)))
+    # Old complete-looking source and annual caches must not become current input.
+    pd.DataFrame(dict(country=["SNPP_ONLY"], series=["viirs"], cell=[999], year=[1999], n_days=[1])).to_parquet(
+        metrics / "_partial_lote5/cell_year_1999.parquet", index=False)
+    # A pre-separation annual cache for a selected year also needs rebuilding.
+    annual_path = metrics / "_partial_lote5/cell_year_2018.parquet"
+    annual = pd.read_parquet(annual_path)
+    contaminated = annual.iloc[[0]].copy()
+    contaminated["country"] = "SNPP_ONLY"
+    pd.concat([annual, contaminated], ignore_index=True).to_parquet(annual_path, index=False)
+    (metrics / "_partial_lote5/cell_year_2018.json").write_text(json.dumps({"schema": 1}))
+    updated = run_cells(tmp_path)
+    for name, expected in before.items():
+        pd.testing.assert_frame_equal(updated["tables"][name], expected)
+    params = json.loads((metrics / "_params_lote5.json").read_text())
+    assert params["sensors"] == ["modis", "viirs-jpss1"]
+    assert params["years"] == [2018, 2019]
+    assert (stale / "_done.json").exists()
+    assert (metrics / "_partial_lote5/cell_year_1999.parquet").exists()
+    all_core = run_cells(tmp_path, SENSORS=None)
+    for name, expected in before.items():
+        pd.testing.assert_frame_equal(all_core["tables"][name], expected)
+    with pytest.raises(ValueError, match="09_har12_snpp"):
+        run_cells(tmp_path, SENSORS={"viirs-snpp"})
+
+
+def test_changed_selection_ignores_completed_unselected_core_caches(tmp_path):
+    write_drive(tmp_path)
+    run_cells(tmp_path)
+    ns = run_cells(tmp_path, SENSORS={"modis"}, YEARS={2019})
+    for name in ["l5_esp02_active_cells", "l5_esp03_recurrence", "l5_add05_type_sensitivity"]:
+        assert set(ns["tables"][name].year) == {2019}
+    assert set(ns["tables"]["l5_esp02_active_cells"].series) == {"modis"}
+    assert set(ns["tables"]["l5_add05_type_sensitivity"].instrument) == {"MODIS"}
+    assert set(ns["tables"]["l5_qa05_confirmed_days"].instrument) == {"MODIS"}
+    assert set(ns["tables"]["l5_qa05_confirmed_days"].year) == {2019}
+    assert ns["tables"]["l5_add06_union_step"].empty
