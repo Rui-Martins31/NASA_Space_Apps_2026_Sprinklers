@@ -1,16 +1,16 @@
-"""Auxiliares de teste do Lote 4: constroem DataFrames no esquema das tabelas l1_*."""
+"""Auxiliares de teste do Lote 4: constroem DataFrames no esquema das tabelas l1_* (chave `cell`)."""
 import pandas as pd
 
-MONTHLY_DEFAULTS = {"country": "P", "series": "modis", "year": 2001, "month": 3,
+MONTHLY_DEFAULTS = {"cell": 1, "series": "modis", "year": 2001, "month": 3,
                     "cell_days": 0, "partial": False, "n_unknown_days": 0}
-MONTHLY_COLUMNS = ["country", "year", "month", "series", "cell_days", "partial", "n_unknown_days"]
+MONTHLY_COLUMNS = ["cell", "year", "month", "series", "cell_days", "partial", "n_unknown_days"]
 
 
 def monthly_df(rows):
     """l1_cal_monthly a partir de uma lista de dicts (so o que difere dos defeitos)."""
     recs = [{**MONTHLY_DEFAULTS, **r} for r in rows]
     df = pd.DataFrame.from_records(recs, columns=list(MONTHLY_DEFAULTS))
-    for c in ("year", "month", "cell_days", "n_unknown_days"):
+    for c in ("cell", "year", "month", "cell_days", "n_unknown_days"):
         df[c] = df[c].astype("int64")
     df["partial"] = df["partial"].astype(bool)
     return df[MONTHLY_COLUMNS]

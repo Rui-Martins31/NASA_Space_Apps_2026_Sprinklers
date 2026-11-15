@@ -3,7 +3,7 @@
 Calendário harmonizado de queimadas (MODIS + VIIRS FIRMS).
 
 ## Arquitetura
-Colab (processa, via Drive) → `metrics/` na Drive → backend (FastAPI) → frontend.
+Colab (processa, via Drive) → `metrics/` na Drive → backend (Flask) → frontend.
 Os dados não estão no Git: ver [data/README.md](data/README.md).
 
 ## Arranque rápido

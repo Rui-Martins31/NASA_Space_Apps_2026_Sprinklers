@@ -5,12 +5,12 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
-from helpers_lote3 import historical_pool, monthly
+from helpers_lote3 import CELL, historical_pool, monthly
 from metrics import history_anomaly as h
 
 
-ABS_COLUMNS = ["country", "series", "year", "month", "cell_days", "valid_month", "n_ref_years", "ref_mean", "anomaly_abs"]
-PCT_COLUMNS = ["country", "series", "year", "month", "cell_days", "ref_mean", "anomaly_abs", "anomaly_pct"]
+ABS_COLUMNS = ["cell", "series", "year", "month", "cell_days", "valid_month", "n_ref_years", "ref_mean", "anomaly_abs"]
+PCT_COLUMNS = ["cell", "series", "year", "month", "cell_days", "ref_mean", "anomaly_abs", "anomaly_pct"]
 
 
 def test_worked_example_literal_and_zero_sum():
@@ -31,22 +31,22 @@ def test_empty_and_missing_schema(name, columns):
     assert result.empty
     assert result.columns.tolist() == columns
     argument = historical_pool() if name == "his03_anomaly_abs" else h.his03_anomaly_abs(historical_pool())
-    with pytest.raises(ValueError, match="country"):
-        getattr(h, name)(argument.drop(columns="country"))
+    with pytest.raises(ValueError, match="cell"):
+        getattr(h, name)(argument.drop(columns="cell"))
 
 
 @pytest.mark.parametrize("function", [h.his03_anomaly_abs, h.his04_anomaly_pct])
 def test_shuffle_immutability_and_group_isolation(function):
     source = historical_pool()
-    source = pd.concat([source.assign(country="Spain", cell_days=100),
+    source = pd.concat([source.assign(cell=CELL + 1, cell_days=100),
                         source.assign(series="combined", cell_days=200), source], ignore_index=True)
     if function.__name__ == "his04_anomaly_pct":
         source = h.his03_anomaly_abs(source)
     original = source.copy(deep=True)
     result = function(source)
     assert_frame_equal(result, function(source.sample(frac=1, random_state=9)))
-    subset = source.loc[source.country.eq("Portugal") & source.series.eq("modis")]
-    assert_frame_equal(result.loc[result.country.eq("Portugal") & result.series.eq("modis")].reset_index(drop=True), function(subset))
+    subset = source.loc[source.cell.eq(CELL) & source.series.eq("modis")]
+    assert_frame_equal(result.loc[result.cell.eq(CELL) & result.series.eq("modis")].reset_index(drop=True), function(subset))
     assert_frame_equal(source, original)
 
 
@@ -129,7 +129,7 @@ def test_history_input_rejects_invalid_period_records(function, problem):
         source = h.his03_anomaly_abs(source)
     if problem == "duplicate":
         source = pd.concat([source, source.iloc[:1]], ignore_index=True)
-        message = "Duplicate.*country.*series.*year.*month"
+        message = "Duplicate.*cell.*series.*year.*month"
     else:
         source["cell_days"] = source.cell_days.astype("Int64")
         source.loc[0, "cell_days"] = pd.NA
@@ -139,14 +139,13 @@ def test_history_input_rejects_invalid_period_records(function, problem):
 
 
 @pytest.mark.parametrize("function", [h.his03_anomaly_abs, h.his04_anomaly_pct])
-def test_categorical_history_keys_without_future_warnings(function):
+def test_categorical_series_key_without_future_warnings(function):
     import warnings
 
     source = historical_pool()
     if function.__name__ == "his04_anomaly_pct":
         source = h.his03_anomaly_abs(source)
     expected = function(source)
-    source["country"] = pd.Categorical(source.country, categories=["Portugal", "Unused"])
     source["series"] = pd.Categorical(source.series, categories=["modis", "viirs"])
     with warnings.catch_warnings():
         warnings.simplefilter("error", FutureWarning)
