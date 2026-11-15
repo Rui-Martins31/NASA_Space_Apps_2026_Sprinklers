@@ -214,6 +214,16 @@ Request:
 Response:
 `text/csv` with `Content-Disposition: attachment`, columns `lat,lon,date_time,confidence_class`. Invalid parameters return `400` with `{"error": "<message>"}`.
 
+### Errors
+
+Every error is JSON, `{"error": "<message>"}`:
+
+| Status | When | Example message |
+|--------|------|-----------------|
+| `400` | invalid request body or query string | `"radius must be greater than 0"` |
+| `404` | unknown endpoint (e.g. `/api/alle`) | `"unknown endpoint /api/alle"` |
+| `405` | the endpoint exists but not for this method (the `Allow` header lists the valid ones) | `"GET is not allowed on /api/calendar; use POST"` |
+
 
 ---
 

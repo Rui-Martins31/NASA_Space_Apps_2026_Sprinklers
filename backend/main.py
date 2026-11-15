@@ -27,9 +27,25 @@ def create_app(database):
     @app.after_request
     def allow_cors(response):
         # Let the frontend call the API from another port during development.
-        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Origin"]  = "*"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        
         return response
+
+    @app.errorhandler(404)
+    def unknown_endpoint(_error):
+        # Any URL with no route gets a JSON error.
+        return jsonify({"error": f"unknown endpoint {request.path}"}), 404
+
+    @app.errorhandler(405)
+    def method_not_allowed(error):
+        # The URL exists but not for this method (e.g. GET /api/calendar).
+        allowed = sorted(set(error.valid_methods or []) - {"HEAD", "OPTIONS"})
+        return (
+            jsonify({"error": f"{request.method} is not allowed on {request.path}; use {', '.join(allowed)}"}),
+            405,
+            {"Allow": ", ".join(allowed)}
+        )
 
     def handle(feature, build_response):
         try:
