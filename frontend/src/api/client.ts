@@ -4,6 +4,15 @@ import { mockFetch } from './mock'
 // Mock data only when explicitly asked for (VITE_USE_MOCK=true).
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
+// Where the backend lives. Empty (local dev) = same origin: Vite forwards /api.
+// Production builds read it from .env.production: the Cloud Run URL, called directly.
+const API_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '')
+
+/** Full URL of a backend path, e.g. apiUrl('/api/calendar'). */
+export function apiUrl(path: string): string {
+  return `${API_URL}${path}`
+}
+
 /** Most hotspots the backend returns in one request. */
 export const MAX_HOTSPOTS = 50_000
 
@@ -25,7 +34,7 @@ export async function fetchFeature(feature: Feature, query: AreaQuery): Promise<
   const req = toApiRequest(feature, query)
   if (USE_MOCK) return mockFetch(feature, req)
 
-  const res = await fetch(`/api/${feature}`, {
+  const res = await fetch(apiUrl(`/api/${feature}`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(req),
@@ -57,7 +66,7 @@ export async function fetchHotspotsCsv(query: AreaQuery): Promise<string> {
     date_time_from: `${query.dateFrom}T00:00:00`,
     date_time_to: `${query.dateTo}T23:59:59`,
   })
-  const res = await fetch(`/api/hotspots.csv?${params}`)
+  const res = await fetch(apiUrl(`/api/hotspots.csv?${params}`))
   if (!res.ok) {
     let message = `Server error (${res.status})`
     try {
@@ -88,7 +97,7 @@ export async function countHotspots(query: AreaQuery, signal?: AbortSignal): Pro
     date_time_from: `${query.dateFrom}T00:00:00`,
     date_time_to: `${query.dateTo}T23:59:59`,
   })
-  const res = await fetch(`/api/hotspots.csv?${params}`, { signal })
+  const res = await fetch(apiUrl(`/api/hotspots.csv?${params}`), { signal })
   if (!res.ok || !res.body) throw new Error(`Server error (${res.status})`)
   const reader = res.body.getReader()
   let lines = 0
