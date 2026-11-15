@@ -2,13 +2,17 @@ import { useState } from 'react'
 import { Popover } from '@base-ui/react/popover'
 import { CalendarBlank, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import clsx from 'clsx'
+import { monthName, useT, type Lang } from '../i18n'
+import { useApp } from '../store'
 
 // Date picker styled like the rest of the app (replaces the browser's own
 // calendar pop-up, which looks different on every system).
 // Values are 'YYYY-MM-DD' strings, like everywhere else in the app.
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
+const WEEKDAYS: Record<Lang, string[]> = {
+  en: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'],
+  pt: ['Se', 'Te', 'Qu', 'Qu', 'Se', 'Sá', 'Do'],
+}
 
 const TODAY = new Date().toISOString().slice(0, 10)
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -17,9 +21,9 @@ function parse(s: string) {
   const [y, m, d] = s.split('-').map(Number)
   return { y, m: m - 1, d }
 }
-function display(s: string) {
+function display(s: string, lang: Lang) {
   const { y, m, d } = parse(s)
-  return `${pad(d)} ${MONTHS[m].slice(0, 3)} ${y}`
+  return `${pad(d)} ${monthName(m + 1, lang)} ${y}`
 }
 
 interface Props {
@@ -31,6 +35,8 @@ interface Props {
 }
 
 export default function DatePicker({ label, value, min, max, onChange }: Props) {
+  const t = useT()
+  const lang = useApp((s) => s.lang)
   const [open, setOpen] = useState(false)
   const [view, setView] = useState(() => {
     const { y, m } = parse(value)
@@ -64,7 +70,7 @@ export default function DatePicker({ label, value, min, max, onChange }: Props) 
       <Popover.Trigger className="block w-full rounded-[10px] bg-ink-800 px-3 py-2 text-left ring-1 ring-line transition-shadow duration-150 hover:ring-fg/20 data-[popup-open]:ring-ember-500/60">
         <span className="block text-[10px] uppercase tracking-[0.08em] text-fg-muted">{label}</span>
         <span className="flex items-center justify-between font-mono text-[13px] text-fg">
-          {display(value)}
+          {display(value, lang)}
           <CalendarBlank size={14} className="text-fg-muted" />
         </span>
       </Popover.Trigger>
@@ -76,7 +82,7 @@ export default function DatePicker({ label, value, min, max, onChange }: Props) 
               <button
                 onClick={() => shift(-1)}
                 disabled={!canPrev}
-                aria-label="Previous month"
+                aria-label={t('date.prev')}
                 className="grid size-8 place-items-center rounded-[8px] text-fg-muted hover:bg-ink-700 hover:text-fg disabled:opacity-30"
               >
                 <CaretLeft size={16} />
@@ -84,10 +90,10 @@ export default function DatePicker({ label, value, min, max, onChange }: Props) 
               <select
                 value={view.m}
                 onChange={(e) => setView((v) => ({ ...v, m: Number(e.target.value) }))}
-                aria-label="Month"
+                aria-label={t('date.month')}
                 className="h-8 flex-1 cursor-pointer appearance-none rounded-[8px] bg-transparent px-2 text-center font-display text-sm font-semibold text-fg outline-none hover:bg-ink-700 focus-visible:ring-1 focus-visible:ring-ember-500/60"
               >
-                {MONTHS.map((name, i) => (
+                {Array.from({ length: 12 }, (_, i) => monthName(i + 1, lang, 'long')).map((name, i) => (
                   <option key={name} value={i} className="bg-ink-900">
                     {name}
                   </option>
@@ -96,7 +102,7 @@ export default function DatePicker({ label, value, min, max, onChange }: Props) 
               <select
                 value={view.y}
                 onChange={(e) => setView((v) => ({ ...v, y: Number(e.target.value) }))}
-                aria-label="Year"
+                aria-label={t('date.year')}
                 className="h-8 cursor-pointer appearance-none rounded-[8px] bg-transparent px-2 text-center font-mono text-sm text-fg outline-none hover:bg-ink-700 focus-visible:ring-1 focus-visible:ring-ember-500/60"
               >
                 {years.map((y) => (
@@ -108,7 +114,7 @@ export default function DatePicker({ label, value, min, max, onChange }: Props) 
               <button
                 onClick={() => shift(1)}
                 disabled={!canNext}
-                aria-label="Next month"
+                aria-label={t('date.next')}
                 className="grid size-8 place-items-center rounded-[8px] text-fg-muted hover:bg-ink-700 hover:text-fg disabled:opacity-30"
               >
                 <CaretRight size={16} />
@@ -117,8 +123,8 @@ export default function DatePicker({ label, value, min, max, onChange }: Props) 
 
             {/* Day grid */}
             <div className="grid grid-cols-7 gap-0.5 text-center">
-              {WEEKDAYS.map((w) => (
-                <div key={w} className="pb-1 text-[10.5px] text-fg-muted">
+              {WEEKDAYS[lang].map((w, wi) => (
+                <div key={wi} className="pb-1 text-[10.5px] text-fg-muted">
                   {w}
                 </div>
               ))}
@@ -136,7 +142,7 @@ export default function DatePicker({ label, value, min, max, onChange }: Props) 
                       onChange(v)
                       setOpen(false)
                     }}
-                    aria-label={display(v)}
+                    aria-label={display(v, lang)}
                     aria-pressed={selected}
                     className={clsx(
                       'h-8 rounded-[8px] font-mono text-[12.5px] transition-colors duration-100 outline-none focus-visible:ring-1 focus-visible:ring-ember-500/70',
@@ -159,7 +165,7 @@ export default function DatePicker({ label, value, min, max, onChange }: Props) 
                 }}
                 className="rounded-[6px] px-2 py-1 text-xs text-fg-muted hover:bg-ink-700 hover:text-fg"
               >
-                Earliest
+                {t('date.earliest')}
               </button>
               <button
                 onClick={() => {
@@ -168,7 +174,7 @@ export default function DatePicker({ label, value, min, max, onChange }: Props) 
                 }}
                 className="rounded-[6px] px-2 py-1 text-xs text-ember-300 hover:bg-ink-700"
               >
-                Latest
+                {t('date.latest')}
               </button>
             </div>
           </Popover.Popup>

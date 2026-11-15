@@ -2,20 +2,24 @@ import { useEffect, useMemo } from 'react'
 import { Slider } from '@base-ui/react/slider'
 import { Pause, Play, X } from '@phosphor-icons/react'
 import { useApp } from '../store'
+import { locale, useT } from '../i18n'
 
 const REPLAY_SECONDS = 25 // the whole period plays in about this long
 
-function fmtDate(ts: number) {
-  return new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
+function fmtDate(ts: number, loc: string) {
+  return new Date(ts).toLocaleDateString(loc, { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
 }
 
 // Timeline at the bottom of the screen while a replay is active.
 export default function ReplayBar() {
+  const t = useT()
   const replayTime = useApp((s) => s.replayTime)
   const playing = useApp((s) => s.replayPlaying)
   const hotspots = useApp((s) => s.hotspots)
-  const dateFrom = useApp((s) => s.dateFrom)
-  const dateTo = useApp((s) => s.dateTo)
+  const win = useApp((s) => s.hotspotWindow)
+  const dateFrom = useApp((s) => win?.from ?? s.dateFrom)
+  const dateTo = useApp((s) => win?.to ?? s.dateTo)
+  const loc = locale(useApp((s) => s.lang))
   const setReplay = useApp((s) => s.setReplay)
 
   const start = new Date(dateFrom).getTime()
@@ -86,7 +90,7 @@ export default function ReplayBar() {
     <div className="glass absolute bottom-6 left-1/2 z-20 flex w-[min(640px,calc(100vw-32px))] -translate-x-1/2 items-center gap-4 rounded-[14px] px-4 py-3 animate-[panel-in_240ms_cubic-bezier(0.23,1,0.32,1)]">
       <button
         onClick={togglePlay}
-        aria-label={playing ? 'Pause replay' : 'Play replay'}
+        aria-label={playing ? t('replay.pause') : t('replay.play')}
         className="grid size-10 shrink-0 place-items-center rounded-full bg-ember-500 text-ink-950 transition-transform duration-150 active:scale-95"
       >
         {playing ? <Pause size={18} weight="fill" /> : <Play size={18} weight="fill" />}
@@ -94,9 +98,9 @@ export default function ReplayBar() {
 
       <div className="min-w-0 flex-1">
         <div className="mb-1.5 flex items-baseline justify-between gap-3">
-          <span className="font-mono text-[15px] text-fg">{fmtDate(replayTime)}</span>
+          <span className="font-mono text-[15px] text-fg">{fmtDate(replayTime, loc)}</span>
           <span className="font-mono text-[11px] text-fg-muted">
-            {shown.toLocaleString('en')} / {sortedTs.length.toLocaleString('en')} hotspots
+            {shown.toLocaleString('en')} / {sortedTs.length.toLocaleString('en')} {t('hotspots')}
           </span>
         </div>
         <Slider.Root
@@ -109,19 +113,19 @@ export default function ReplayBar() {
           <Slider.Control className="flex h-4 w-full touch-none items-center select-none">
             <Slider.Track className="h-1 w-full rounded-full bg-ink-700">
               <Slider.Indicator className="rounded-full bg-ember-500" />
-              <Slider.Thumb aria-label="Replay date" className="size-3.5 rounded-full bg-fg outline-none focus-visible:shadow-[0_0_0_4px_rgb(255_107_26/0.45)]" />
+              <Slider.Thumb aria-label={t('replay.date')} className="size-3.5 rounded-full bg-fg outline-none focus-visible:shadow-[0_0_0_4px_rgb(255_107_26/0.45)]" />
             </Slider.Track>
           </Slider.Control>
         </Slider.Root>
         <div className="mt-1 flex justify-between font-mono text-[10px] text-fg-muted">
-          <span>{fmtDate(start)}</span>
-          <span>{fmtDate(end)}</span>
+          <span>{fmtDate(start, loc)}</span>
+          <span>{fmtDate(end, loc)}</span>
         </div>
       </div>
 
       <button
         onClick={() => setReplay(null, false)}
-        aria-label="Stop replay and show all hotspots"
+        aria-label={t('replay.stop')}
         className="shrink-0 rounded-md p-1.5 text-fg-muted hover:bg-ink-700 hover:text-fg"
       >
         <X size={18} />

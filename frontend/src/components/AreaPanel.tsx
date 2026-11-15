@@ -6,7 +6,8 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { DATA_START, TODAY, useApp } from '../store'
 import DatePicker from './DatePicker'
 import EmptyState, { totalHotspots } from './EmptyState'
-import { currentVsMedian, MONTHS, yearTotals } from '../lib/stats'
+import { currentVsMean, fmt, summary } from '../lib/stats'
+import { monthName, useT, type TKey } from '../i18n'
 
 const RADII = [5, 25, 50, 100, 150, 300]
 
@@ -16,10 +17,10 @@ function minusYears(iso: string, years: number) {
   return d.toISOString().slice(0, 10)
 }
 
-const RANGES = [
-  { label: '12 months', from: () => minusYears(TODAY, 1) },
-  { label: '5 years', from: () => minusYears(TODAY, 5) },
-  { label: 'Full record', from: () => DATA_START },
+const RANGES: { label: TKey; from: () => string }[] = [
+  { label: 'range.12m', from: () => minusYears(TODAY, 1) },
+  { label: 'range.5y', from: () => minusYears(TODAY, 5) },
+  { label: 'range.all', from: () => DATA_START },
 ]
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
@@ -45,7 +46,7 @@ function Label({ children, right }: { children: ReactNode; right?: ReactNode }) 
   )
 }
 
-function RadiusInput({ value, onChange }: { value: number; onChange: (km: number) => void }) {
+function RadiusInput({ value, onChange, label }: { value: number; onChange: (km: number) => void; label: string }) {
   const [draft, setDraft] = useState(String(value))
   useEffect(() => setDraft(String(value)), [value])
   const commit = () => {
@@ -65,21 +66,32 @@ function RadiusInput({ value, onChange }: { value: number; onChange: (km: number
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-        aria-label="Radius in km"
+        aria-label={label}
         className="w-14 rounded-[6px] bg-ink-800 px-1.5 py-0.5 text-right ring-1 ring-line outline-none focus:ring-ember-500/60 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
       />
       km
     </label>
   )
 }
+function Card({ label, children, sub }: { label: ReactNode; children: ReactNode; sub: ReactNode }) {
+  return (
+    <div className="bg-ink-900 px-5 py-3.5">
+      <div className="truncate text-[11px] uppercase tracking-[0.08em] text-fg-muted">{label}</div>
+      <div className="font-mono text-[22px] leading-tight font-medium">{children}</div>
+      <div className="text-xs leading-snug text-fg-muted">{sub}</div>
+    </div>
+  )
+}
+
 export default function AreaPanel() {
-  const { place, radiusKm, dateFrom, dateTo, status, calendar } = useApp()
+  const t = useT()
+  const { place, radiusKm, dateFrom, dateTo, status, calendar, lang } = useApp()
   const { setRadius, setDates, analyze } = useApp.getState()
   if (!place) return null
 
   const empty = status === 'ready' && totalHotspots(calendar) === 0
-  const kpi = calendar && !empty ? currentVsMedian(calendar, dateTo) : null
-  const peak = calendar ? [...yearTotals(calendar)].sort((a, b) => b.count - a.count)[0] : null
+  const kpi = calendar && !empty ? currentVsMean(calendar, dateTo) : null
+  const sum = calendar && !empty ? summary(calendar) : null
 
   return (
     <section className="glass mt-3 flex max-h-[calc(100vh-96px)] flex-col overflow-y-auto rounded-[14px] animate-[panel-in_240ms_cubic-bezier(0.23,1,0.32,1)]">
@@ -98,13 +110,13 @@ export default function AreaPanel() {
 
       {/* Radius */}
       <div className="px-5 pt-4">
-        <Label right={<RadiusInput value={radiusKm} onChange={setRadius} />}>Radius</Label>
+        <Label right={<RadiusInput value={radiusKm} onChange={setRadius} label={t('panel.radiusAria')} />}>{t('panel.radius')}</Label>
         <Slider.Root value={radiusKm} onValueChange={(v) => setRadius(v as number)} min={1} max={500} step={1}>
           <Slider.Control className="flex h-6 w-full touch-none items-center select-none">
             <Slider.Track className="h-1 w-full rounded-full bg-ink-700">
               <Slider.Indicator className="rounded-full bg-ember-500" />
               <Slider.Thumb
-                aria-label="Radius in km"
+                aria-label={t('panel.radiusAria')}
                 className="size-4 rounded-full bg-fg shadow-[0_0_0_4px_rgb(255_107_26/0.25)] outline-none focus-visible:shadow-[0_0_0_6px_rgb(255_107_26/0.45)]"
               />
             </Slider.Track>
@@ -121,15 +133,15 @@ export default function AreaPanel() {
 
       {/* Dates */}
       <div className="px-5 pt-5">
-        <Label>Period</Label>
+        <Label>{t('panel.period')}</Label>
         <div className="grid grid-cols-2 gap-2">
-          <DatePicker label="From" value={dateFrom} min={DATA_START} max={dateTo} onChange={(v) => setDates(v, dateTo)} />
-          <DatePicker label="To" value={dateTo} min={dateFrom} max={TODAY} onChange={(v) => setDates(dateFrom, v)} />
+          <DatePicker label={t('panel.from')} value={dateFrom} min={DATA_START} max={dateTo} onChange={(v) => setDates(v, dateTo)} />
+          <DatePicker label={t('panel.to')} value={dateTo} min={dateFrom} max={TODAY} onChange={(v) => setDates(dateFrom, v)} />
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {RANGES.map((r) => (
             <Chip key={r.label} active={dateFrom === r.from() && dateTo === TODAY} onClick={() => setDates(r.from(), TODAY)}>
-              {r.label}
+              {t(r.label)}
             </Chip>
           ))}
         </div>
@@ -144,15 +156,15 @@ export default function AreaPanel() {
         >
           {status === 'loading' ? (
             <>
-              <CircleNotch size={18} className="animate-spin" /> Analyzing…
+              <CircleNotch size={18} className="animate-spin" /> {t('panel.analyzing')}
             </>
           ) : (
             <>
-              {status === 'ready' ? 'Update analysis' : 'Analyze area'} <ArrowRight size={16} weight="bold" />
+              {status === 'ready' ? t('panel.update') : t('panel.analyze')} <ArrowRight size={16} weight="bold" />
             </>
           )}
         </button>
-        {dateFrom > dateTo && <p className="mt-2 text-xs text-ember-300">The start date is after the end date.</p>}
+        {dateFrom > dateTo && <p className="mt-2 text-xs text-ember-300">{t('panel.badDates')}</p>}
       </div>
 
       {/* Quick results */}
@@ -163,34 +175,43 @@ export default function AreaPanel() {
         </>
       )}
 
-      {kpi && (
+      {kpi && sum && (
         <>
           <div className="h-px bg-line" />
+          {/* Summary cards (W5): consistent with the calendar */}
           <div className="grid grid-cols-2 gap-px bg-line">
-            <div className="bg-ink-900 px-5 py-4">
-              <div className="text-[11px] uppercase tracking-[0.08em] text-fg-muted">
-                {MONTHS[kpi.month - 1]} {kpi.year}
-              </div>
-              <NumberFlow value={kpi.count} className="font-mono text-[26px] font-medium" />
-              <div className="text-xs text-fg-muted">{kpi.partial ? 'hotspots so far' : 'hotspots'}</div>
-            </div>
-            <div className="bg-ink-900 px-5 py-4">
-              <div className="text-[11px] uppercase tracking-[0.08em] text-fg-muted">vs median{kpi.partial && ' to date'}</div>
+            <Card label={t('kpi.total')} sub={t('kpi.totalSub')}>
+              <NumberFlow value={sum.total} />
+            </Card>
+            <Card
+              label={t('kpi.peakMonth')}
+              sub={sum.peakMonth ? `${fmt(sum.peakMonth.count)} ${t('hotspots')}` : '—'}
+            >
+              {sum.peakMonth ? `${monthName(sum.peakMonth.month, lang)} ${sum.peakMonth.year}` : '—'}
+            </Card>
+            <Card label={t('kpi.avg')} sub={t('kpi.avgSub')}>
+              <NumberFlow value={Math.round(sum.annualAvg)} />
+            </Card>
+            <Card
+              label={`${monthName(kpi.month, lang)} ${kpi.year}`}
+              sub={
+                <>
+                  <span className="font-mono">{fmt(kpi.count)}</span> {kpi.partial ? t('kpi.soFar') : t('hotspots')} ·{' '}
+                  {kpi.partial ? t('kpi.vsMeanToDate') : t('kpi.vsMean')} <span className="font-mono">{fmt(kpi.mean)}</span>
+                </>
+              }
+            >
               <NumberFlow
-                value={Math.round(kpi.pct)}
+                value={Math.max(-999, Math.min(999, Math.round(kpi.pct)))}
                 prefix={kpi.pct > 0 ? '+' : ''}
                 suffix="%"
-                className={clsx('font-mono text-[26px] font-medium', kpi.pct > 15 ? 'text-ember-300' : kpi.pct < -15 ? 'text-cool-400' : 'text-fg')}
+                className={clsx(kpi.pct > 15 ? 'text-ember-300' : kpi.pct < -15 ? 'text-cool-400' : 'text-fg')}
               />
-              <div className="text-xs text-fg-muted">
-                median <span className="font-mono">{Math.round(kpi.median)}</span>
-              </div>
-            </div>
+            </Card>
           </div>
-          {peak && (
+          {sum.peakYear && (
             <div className="px-5 py-3 text-xs text-fg-muted">
-              Most active year in this period: <span className="font-mono text-fg">{peak.year}</span> (
-              <span className="font-mono">{peak.count.toLocaleString('en')}</span> hotspots)
+              {t('kpi.peakYear', { year: sum.peakYear.year, count: fmt(sum.peakYear.count) })}
             </div>
           )}
         </>
@@ -199,7 +220,7 @@ export default function AreaPanel() {
       <div className="mx-5 mb-5 flex gap-2 rounded-[10px] bg-ink-800 p-3 text-xs leading-relaxed text-fg-muted ring-1 ring-line">
         <Info size={16} className="mt-px shrink-0" />
         <span>
-          MODIS (2000→) and VIIRS (2012→) hotspots, harmonized to VIIRS-equivalent counts so the sensor does not matter.
+          {t('panel.info')}
         </span>
       </div>
     </section>

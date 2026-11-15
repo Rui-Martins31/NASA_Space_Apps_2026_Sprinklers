@@ -5,9 +5,11 @@ import clsx from 'clsx'
 import { searchPlaces } from '../api/geocode'
 import { useApp } from '../store'
 import type { Place } from '../types'
+import { useT } from '../i18n'
 
 // Place search as a command palette (cmdk). Ctrl/Cmd + K focuses it from anywhere.
 export default function SearchBar() {
+  const t = useT()
   const place = useApp((s) => s.place)
   const setPlace = useApp((s) => s.setPlace)
   const [query, setQuery] = useState('')
@@ -34,7 +36,7 @@ export default function SearchBar() {
   useEffect(() => {
     if (!open) return
     const ctrl = new AbortController()
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       if (query.trim().length < 2) {
         setResults([])
         return
@@ -44,13 +46,13 @@ export default function SearchBar() {
       try {
         setResults(await searchPlaces(query, ctrl.signal))
       } catch (e) {
-        if ((e as Error).name !== 'AbortError') setError((e as Error).message)
+        if ((e as Error).name !== 'AbortError') setError(t('search.unavailable'))
       } finally {
         setLoading(false)
       }
     }, 250)
     return () => {
-      clearTimeout(t)
+      clearTimeout(timer)
       ctrl.abort()
     }
   }, [query, open])
@@ -72,7 +74,7 @@ export default function SearchBar() {
   const showList = open && query.trim().length >= 2
 
   return (
-    <Command shouldFilter={false} label="Search a place" className="relative w-full">
+    <Command shouldFilter={false} label={t('search.label')} className="relative w-full">
       <div className="glass flex h-12 items-center gap-2.5 rounded-[14px] px-4">
         <MagnifyingGlass size={18} className="shrink-0 text-fg-muted" />
         <Command.Input
@@ -84,11 +86,11 @@ export default function SearchBar() {
           }}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 120)}
-          placeholder="Search a place or type lat, lon"
+          placeholder={t('search.placeholder')}
           className="h-full min-w-0 flex-1 bg-transparent text-[15px] text-fg outline-none placeholder:text-fg-muted"
         />
         {query || place ? (
-          <button onClick={clear} aria-label="Clear search" className="rounded-md p-1 text-fg-muted hover:bg-ink-700 hover:text-fg">
+          <button onClick={clear} aria-label={t('search.clear')} className="rounded-md p-1 text-fg-muted hover:bg-ink-700 hover:text-fg">
             <X size={16} />
           </button>
         ) : (
@@ -98,9 +100,9 @@ export default function SearchBar() {
 
       {showList && (
         <Command.List className="glass absolute top-14 z-30 w-full overflow-hidden rounded-[14px] p-1.5">
-          {loading && <Command.Loading><div className="px-3 py-2.5 text-sm text-fg-muted">Searching…</div></Command.Loading>}
+          {loading && <Command.Loading><div className="px-3 py-2.5 text-sm text-fg-muted">{t('search.searching')}</div></Command.Loading>}
           {error && <div className="px-3 py-2.5 text-sm text-ember-300">{error}</div>}
-          {!loading && !error && <Command.Empty className="px-3 py-2.5 text-sm text-fg-muted">No places found.</Command.Empty>}
+          {!loading && !error && <Command.Empty className="px-3 py-2.5 text-sm text-fg-muted">{t('search.none')}</Command.Empty>}
           {results.map((p, i) => (
             <Command.Item
               key={`${p.lat},${p.lon},${i}`}
@@ -116,7 +118,7 @@ export default function SearchBar() {
               )}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm text-fg">{p.label}</div>
-                <div className="truncate text-xs text-fg-muted">{p.detail || 'Coordinates'}</div>
+                <div className="truncate text-xs text-fg-muted">{p.detail || t('search.coords')}</div>
               </div>
               <span className="shrink-0 font-mono text-[11px] text-fg-muted">
                 {p.lat.toFixed(2)}, {p.lon.toFixed(2)}

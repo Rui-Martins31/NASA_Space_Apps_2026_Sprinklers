@@ -87,7 +87,7 @@ export default function GlobeMap() {
       flameState.active = !!s.hotspots?.length && map.getZoom() >= FLAME_MINZOOM - 0.5
       if (readyRef.current && s.hotspots?.length && now - lastFire > 33) {
         lastFire = now
-        updateFireAnimation(map, now / 1000, s.replayTime, replayFadeMs(s.dateFrom, s.dateTo))
+        updateFireAnimation(map, now / 1000, s.replayTime, replayFadeMs(s.hotspotWindow?.from ?? s.dateFrom, s.hotspotWindow?.to ?? s.dateTo))
       }
       frame = requestAnimationFrame(tick)
     }
