@@ -1,4 +1,4 @@
-# FireCal: design rules
+# Sprinklers: design rules
 
 Read this before adding or changing any UI. The goal is an interface that looks like it was designed on purpose for this project, not a copy of Google Maps and not the default "AI look" (Inter font, purple gradients, soft white cards everywhere).
 
