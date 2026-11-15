@@ -13,8 +13,8 @@ Dois terminais:
 # 1. backend (Flask, 127.0.0.1:8080) — com dados simulados
 cd backend
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python test/generate_mock_data.py
-.venv/bin/python main.py --data test/mock_hotspots.csv
+.venv/bin/python main.py                    # dados simulados (test/mock_data/)
+# .venv/bin/python main.py --data database    # base de dados do pipeline (ainda não ligada)
 
 # 2. frontend (Vite, http://localhost:5173) — encaminha /api para o backend
 cd frontend
