@@ -196,3 +196,19 @@ Response:
     ]
 }
 ```
+
+- `mean`: the area's reference mean for that calendar month, as computed by the pipeline over its reference years (not over the requested period).
+- `anomaly`: `"above"` when `count > mean`, otherwise `"normal"`.
+
+### Feature -  export hotspots CSV
+
+Method: GET \
+Endpoint: 127.0.0.1:8080/api/hotspots.csv
+
+Request:
+```
+/api/hotspots.csv?lat=39.5&lon=-8.0&radius=50&date_time_from=2020-01-01T00:00:00&date_time_to=2021-12-31T23:59:59
+```
+
+Response:
+`text/csv` with `Content-Disposition: attachment`, columns `lat,lon,date_time,confidence_class`. Invalid parameters return `400` with `{"error": "<message>"}`.

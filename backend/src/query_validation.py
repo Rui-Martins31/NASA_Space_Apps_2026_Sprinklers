@@ -50,6 +50,17 @@ def parse_query(body, feature):
 
     if feature == "hotspots":
         body.setdefault("max_points", config.DEFAULT_MAX_POINTS)
-        query["max_points"] = int(parse_number(body, "max_points", 1, 50_000))
+        query["max_points"] = int(parse_number(body, "max_points", 1, config.MAX_POINTS_LIMIT))
 
     return query
+
+
+def parse_query_string(args, feature):
+    """Same checks for a GET request, where every value arrives as text."""
+    body = dict(args.items())
+    for name in ("lat", "lon", "radius"):
+        try:
+            body[name] = float(body[name])
+        except (KeyError, ValueError):
+            pass  # left as is, so parse_number reports it
+    return parse_query({**body, "feature": feature}, feature)

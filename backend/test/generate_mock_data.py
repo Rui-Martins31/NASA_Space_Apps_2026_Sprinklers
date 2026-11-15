@@ -1,4 +1,6 @@
-"""Write fake hotspots for mainland Portugal to test/mock_hotspots.csv.
+"""Write fake hotspots for mainland Portugal to test/mock_data/hotspots.csv.
+
+Afterwards run test/build_mock_chunks.py to rebuild the chunk tables from them.
 
 The data is invented, but shaped like the real record so the app shows
 something recognisable:
@@ -17,10 +19,15 @@ Run:  python test/generate_mock_data.py
 import csv
 import math
 import random
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-OUTPUT = Path(__file__).parent / "mock_hotspots.csv"
+sys.path.insert(0, str(Path(__file__).parent.parent))  # import backend modules
+
+from src import config
+
+OUTPUT = config.MOCK_DATA_DIR / config.MOCK_HOTSPOTS_FILE
 START = datetime(2000, 11, 1)
 N_BACKGROUND = 20_000
 
