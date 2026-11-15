@@ -15,9 +15,9 @@ ADD02_COLUMNS = ["instrument", "year", "month", "n_days", "n_zero_days", "pct_ze
 
 def add01_active_satellites(obs01: pd.DataFrame) -> pd.DataFrame:
     """ADD-01: satelites ativos por instrumento e mes, a nivel global.
-    Soma `n_raw` por (instrumento, ano, mes, satelite) sobre todos os paises; o satelite e
+    Soma `n_raw` por (instrumento, ano, mes, satelite) sobre todas as celulas; o satelite e
     ativo se a soma for > 0. Meses sem satelite ativo nao aparecem."""
-    require_columns(obs01, ["country", "year", "month", "instrument", "satellite", "n_raw"])
+    require_columns(obs01, ["cell", "year", "month", "instrument", "satellite", "n_raw"])
     require_no_na(obs01, ["year", "month", "instrument", "satellite", "n_raw"])
     work = pd.DataFrame({
         "instrument": obs01["instrument"].astype(object).to_numpy(),

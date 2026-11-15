@@ -71,6 +71,49 @@ def cell_key(latitude, longitude, grid_deg: float = GRID_DEG) -> np.ndarray:
     return ilat * n_lon + ilon
 
 
+# --- chaves de celula (pipeline por celula; substitui `country`) -------------
+GLOBAL_CELL = -1                     # `cell` das linhas globais (substitui a linha 'ALL')
+BAND_DEG = 10                        # largura, em graus de latitude, de cada `lat_band`
+
+
+def cell_to_ids(cell, grid_deg: float = GRID_DEG):
+    """Inversa de `cell_key`: (ilat, ilon) a partir do identificador `cell` (int64).
+    `GLOBAL_CELL` (-1) nao e uma celula: levanta ValueError se houver valores fora da grelha."""
+    _, n_lat, n_lon = _grid_shape(grid_deg)
+    key = np.asarray(cell, dtype="int64")
+    if ((key < 0) | (key >= n_lat * n_lon)).any():
+        raise ValueError("cell fora da grelha (use so celulas reais, nao GLOBAL_CELL)")
+    return key // n_lon, key % n_lon
+
+
+def cell_center(cell, grid_deg: float = GRID_DEG):
+    """(lat, lon) do centro de cada celula, em graus, calculados em inteiros escalados."""
+    step, _, _ = _grid_shape(grid_deg)
+    ilat, ilon = cell_to_ids(cell, grid_deg)
+    lat = ((2 * ilat * step + step) / (2.0 * COORD_SCALE)) - 90.0
+    lon = ((2 * ilon * step + step) / (2.0 * COORD_SCALE)) - 180.0
+    return np.round(lat, 6), np.round(lon, 6)
+
+
+def lat_band(ilat, grid_deg: float = GRID_DEG):
+    """Faixa de `BAND_DEG` graus de latitude (0..17) a que pertence cada `ilat`;
+    serve para particionar as tabelas e fatiar o trabalho por latitude."""
+    step, _, _ = _grid_shape(grid_deg)
+    return (np.asarray(ilat, dtype="int64") * step) // (BAND_DEG * COORD_SCALE)
+
+
+def coarsen_cell(cell, grid_deg: float, to_deg: float):
+    """Identificador da celula de `to_deg` que contem cada celula de `grid_deg`.
+    `to_deg` tem de ser multiplo inteiro de `grid_deg` (p. ex. 0.01 -> 0.1)."""
+    step, _, _ = _grid_shape(grid_deg)
+    to_step, _, to_n_lon = _grid_shape(to_deg)
+    if to_step % step:
+        raise ValueError(f"to_deg={to_deg} nao e multiplo de grid_deg={grid_deg}")
+    ratio = to_step // step
+    ilat, ilon = cell_to_ids(cell, grid_deg)
+    return (ilat // ratio) * to_n_lon + (ilon // ratio)
+
+
 def eligible(df: pd.DataFrame,
              confidence=ELIGIBLE_CONFIDENCE,
              type_value: int = ELIGIBLE_TYPE) -> pd.Series:

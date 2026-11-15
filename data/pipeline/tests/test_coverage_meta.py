@@ -12,8 +12,8 @@ from metrics.coverage_meta import ADD01_COLUMNS, ADD02_COLUMNS, add01_active_sat
 
 
 def obs(rows):
-    """rows: (country, year, month, instrument, satellite, n_raw) -> l1_obs01_raw_counts."""
-    cols = ["country", "year", "month", "instrument", "satellite", "n_raw"]
+    """rows: (cell, year, month, instrument, satellite, n_raw) -> l1_obs01_raw_counts."""
+    cols = ["cell", "year", "month", "instrument", "satellite", "n_raw"]
     df = pd.DataFrame(rows, columns=cols)
     return df.astype({"year": "int64", "month": "int64", "n_raw": "int64"})
 
@@ -37,21 +37,21 @@ def tuples(df):
 
 
 # ------------------------------------------------------------------ ADD-01
-# MODIS 2001-01: Terra PT 5 + ES 3 = 8 (ativo); Aqua PT 0 (inativo)       -> 1, "Terra"
-# MODIS 2003-02: Terra PT 1 (ativo); Aqua PT 0 + ES 2 = 2 (ativo)         -> 2, "Aqua,Terra"
-# VIIRS 2018-01: N20 PT 4 (ativo)                                         -> 1, "N20"
-# VIIRS 2018-02: N20 PT 0 (nenhum ativo)                                  -> mes ausente
+# MODIS 2001-01: Terra c1 5 + c2 3 = 8 (ativo); Aqua c1 0 (inativo)       -> 1, "Terra"
+# MODIS 2003-02: Terra c1 1 (ativo); Aqua c1 0 + c2 2 = 2 (ativo)         -> 2, "Aqua,Terra"
+# VIIRS 2018-01: N20 c1 4 (ativo)                                         -> 1, "N20"
+# VIIRS 2018-02: N20 c1 0 (nenhum ativo)                                  -> mes ausente
 @pytest.fixture
 def obs_rows():
     return obs([
-        ("PT", 2001, 1, "MODIS", "Terra", 5),
-        ("ES", 2001, 1, "MODIS", "Terra", 3),
-        ("PT", 2001, 1, "MODIS", "Aqua", 0),
-        ("PT", 2003, 2, "MODIS", "Terra", 1),
-        ("PT", 2003, 2, "MODIS", "Aqua", 0),
-        ("ES", 2003, 2, "MODIS", "Aqua", 2),
-        ("PT", 2018, 1, "VIIRS", "N20", 4),
-        ("PT", 2018, 2, "VIIRS", "N20", 0),
+        (1, 2001, 1, "MODIS", "Terra", 5),
+        (2, 2001, 1, "MODIS", "Terra", 3),
+        (1, 2001, 1, "MODIS", "Aqua", 0),
+        (1, 2003, 2, "MODIS", "Terra", 1),
+        (1, 2003, 2, "MODIS", "Aqua", 0),
+        (2, 2003, 2, "MODIS", "Aqua", 2),
+        (1, 2018, 1, "VIIRS", "N20", 4),
+        (1, 2018, 2, "VIIRS", "N20", 0),
     ])
 
 
@@ -68,21 +68,21 @@ def test_add01_manual_example(obs_rows):
     assert out["year"].dtype == "int64" and out["month"].dtype == "int64"
 
 
-def test_add01_zero_across_all_countries_is_inactive():
+def test_add01_zero_across_all_cells_is_inactive():
     out = add01_active_satellites(obs([
-        ("PT", 2005, 3, "MODIS", "Terra", 2),
-        ("PT", 2005, 3, "MODIS", "Aqua", 0),
-        ("ES", 2005, 3, "MODIS", "Aqua", 0),
+        (1, 2005, 3, "MODIS", "Terra", 2),
+        (1, 2005, 3, "MODIS", "Aqua", 0),
+        (2, 2005, 3, "MODIS", "Aqua", 0),
     ]))
     assert tuples(out) == [("MODIS", 2005, 3, 1, "Terra")]
 
 
-def test_add01_sum_of_countries_makes_active_and_only_zero_month_absent():
+def test_add01_sum_of_cells_makes_active_and_only_zero_month_absent():
     out = add01_active_satellites(obs([
-        ("PT", 2005, 3, "MODIS", "Aqua", 0),
-        ("ES", 2005, 3, "MODIS", "Aqua", 1),
-        ("PT", 2005, 4, "MODIS", "Aqua", 0),
-        ("ES", 2005, 4, "MODIS", "Aqua", 0),
+        (1, 2005, 3, "MODIS", "Aqua", 0),
+        (2, 2005, 3, "MODIS", "Aqua", 1),
+        (1, 2005, 4, "MODIS", "Aqua", 0),
+        (2, 2005, 4, "MODIS", "Aqua", 0),
     ]))
     assert tuples(out) == [("MODIS", 2005, 3, 1, "Aqua")]
 
@@ -90,19 +90,19 @@ def test_add01_sum_of_countries_makes_active_and_only_zero_month_absent():
 def test_add01_mixed_case_names_untouched_and_sorted_plainly():
     # ordem alfabetica simples: maiusculas antes de minusculas
     out = add01_active_satellites(obs([
-        ("PT", 2010, 7, "MODIS", "aqua", 1),
-        ("PT", 2010, 7, "MODIS", "Terra", 1),
-        ("PT", 2010, 7, "MODIS", "N20", 1),
+        (1, 2010, 7, "MODIS", "aqua", 1),
+        (1, 2010, 7, "MODIS", "Terra", 1),
+        (1, 2010, 7, "MODIS", "N20", 1),
     ]))
     assert tuples(out) == [("MODIS", 2010, 7, 3, "N20,Terra,aqua")]
 
 
 def test_add01_instruments_independent_and_sorted():
     out = add01_active_satellites(obs([
-        ("PT", 2019, 5, "VIIRS", "N20", 1),
-        ("PT", 2019, 5, "VIIRS", "N21", 1),
-        ("PT", 2019, 5, "MODIS", "Terra", 1),
-        ("PT", 2018, 12, "VIIRS", "SNPP", 1),
+        (1, 2019, 5, "VIIRS", "N20", 1),
+        (1, 2019, 5, "VIIRS", "N21", 1),
+        (1, 2019, 5, "MODIS", "Terra", 1),
+        (1, 2018, 12, "VIIRS", "SNPP", 1),
     ]))
     assert tuples(out) == [
         ("MODIS", 2019, 5, 1, "Terra"),
@@ -114,7 +114,7 @@ def test_add01_instruments_independent_and_sorted():
 def test_add01_empty_and_missing_columns(obs_rows):
     out = add01_active_satellites(obs([]))
     assert out.empty and list(out.columns) == ADD01_COLUMNS
-    allzero = add01_active_satellites(obs([("PT", 2001, 1, "MODIS", "Terra", 0)]))
+    allzero = add01_active_satellites(obs([(1, 2001, 1, "MODIS", "Terra", 0)]))
     assert allzero.empty and list(allzero.columns) == ADD01_COLUMNS
     for col in obs_rows.columns:
         with pytest.raises(ValueError):
@@ -130,7 +130,7 @@ def test_add01_order_invariance(obs_rows):
 
 def test_add01_random_vs_pure_python_oracle():
     rng = random.Random(42)
-    rows = [(rng.choice(["PT", "ES", "FR", "IT"]), rng.choice([2001, 2002]), rng.randint(1, 4),
+    rows = [(rng.choice([1, 2, 3, 4]), rng.choice([2001, 2002]), rng.randint(1, 4),
              rng.choice(["MODIS", "VIIRS"]), rng.choice(["Terra", "Aqua", "N20", "SNPP"]),
              rng.choice([0, 0, 0, 1, 7])) for _ in range(300)]
     totals = {}
@@ -261,7 +261,7 @@ def test_add02_timestamps_within_the_same_day_count_as_one_day():
 
 
 def test_missing_values_raise_a_clear_value_error():
-    o = obs([("PT", 2001, 1, "MODIS", "Terra", 5)])
+    o = obs([(1, 2001, 1, "MODIS", "Terra", 5)])
     o["n_raw"] = pd.array([pd.NA], dtype="Int64")
     with pytest.raises(ValueError, match="n_raw"):
         add01_active_satellites(o)

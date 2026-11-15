@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 from helpers_lote5 import calendar, coverage_df, monthly_df, tuples
+from metrics.common import GLOBAL_CELL
 from metrics.coverage_steps import (ADD06_COLUMNS, QA05_COLUMNS, add06_union_step,
                                     qa05_confirmed_days)
 
@@ -216,9 +217,15 @@ def test_qa05_cross_invariant_with_zero_days_counted_by_hand():
 
 
 # ====================================================================== ADD-06
-def _pair(country="P", year=2018, month=1, modis=0, combined=0, **extra):
+# A chave e `cell` (int64) e a linha global usa `cell = GLOBAL_CELL` (-1); com ordenacao (cell, year)
+# as linhas globais vem primeiro.
+G = GLOBAL_CELL
+P, Q = 1, 2
+
+
+def _pair(cell=P, year=2018, month=1, modis=0, combined=0, **extra):
     """Duas linhas (modis e combined) de um mes; `extra` aplica-se as duas."""
-    base = {"country": country, "year": year, "month": month, **extra}
+    base = {"cell": cell, "year": year, "month": month, **extra}
     return [{**base, "series": "modis", "cell_days": modis},
             {**base, "series": "combined", "cell_days": combined}]
 
@@ -229,36 +236,36 @@ def _pair(country="P", year=2018, month=1, modis=0, combined=0, **extra):
 #           2 meses, 400, 500, ratio 1.25, excesso 25. O mes 3 tem modis parcial -> fora.
 #   Q 2017: meses 2 e 3, modis 5+7, combined 5+7 -> 2 meses, 12, 12, 1, 0
 #   Q 2018: mes 1 modis 100 combined 120 -> 1 mes, 100, 120, ratio 1.2, excesso 20
-#   ALL 2017: meses distintos {1,2} U {2,3} = 3 ; modis 30+12 = 42, combined 42 -> 1, 0
-#   ALL 2018: meses distintos {1,2} U {1} = 2 ; modis 400+100 = 500, combined 500+120 = 620 -> 1.24, 24
+#   GLOBAL 2017: meses distintos {1,2} U {2,3} = 3 ; modis 30+12 = 42, combined 42 -> 1, 0
+#   GLOBAL 2018: meses distintos {1,2} U {1} = 2 ; modis 400+100 = 500, combined 500+120 = 620 -> 1.24, 24
 @pytest.fixture
 def monthly_manual():
-    rows = (_pair("P", 2017, 1, 10, 10) + _pair("P", 2017, 2, 20, 20)
-            + _pair("P", 2018, 1, 100, 130) + _pair("P", 2018, 2, 300, 370)
-            + [{"country": "P", "year": 2018, "month": 1, "series": "viirs", "cell_days": 30},
-               {"country": "P", "year": 2018, "month": 2, "series": "viirs", "cell_days": 70}]
-            + [{"country": "P", "year": 2018, "month": 3, "series": "modis", "cell_days": 999, "partial": True},
-               {"country": "P", "year": 2018, "month": 3, "series": "combined", "cell_days": 888}]
-            + _pair("Q", 2017, 2, 5, 5) + _pair("Q", 2017, 3, 7, 7)
-            + _pair("Q", 2018, 1, 100, 120))
+    rows = (_pair(P, 2017, 1, 10, 10) + _pair(P, 2017, 2, 20, 20)
+            + _pair(P, 2018, 1, 100, 130) + _pair(P, 2018, 2, 300, 370)
+            + [{"cell": P, "year": 2018, "month": 1, "series": "viirs", "cell_days": 30},
+               {"cell": P, "year": 2018, "month": 2, "series": "viirs", "cell_days": 70}]
+            + [{"cell": P, "year": 2018, "month": 3, "series": "modis", "cell_days": 999, "partial": True},
+               {"cell": P, "year": 2018, "month": 3, "series": "combined", "cell_days": 888}]
+            + _pair(Q, 2017, 2, 5, 5) + _pair(Q, 2017, 3, 7, 7)
+            + _pair(Q, 2018, 1, 100, 120))
     return monthly_df(rows)
 
 
 def test_add06_manual_example(monthly_manual):
     out = add06_union_step(monthly_manual)
     assert list(out.columns) == ADD06_COLUMNS
-    assert ADD06_COLUMNS == ["country", "year", "n_months", "sum_modis", "sum_combined",
+    assert ADD06_COLUMNS == ["cell", "year", "n_months", "sum_modis", "sum_combined",
                              "ratio_combined_modis", "excess_pct"]
     assert tuples(out) == [
-        ("ALL", 2017, 3, 42, 42, 1.0, 0.0),
-        ("ALL", 2018, 2, 500, 620, pytest.approx(1.24), pytest.approx(24.0)),
-        ("P", 2017, 2, 30, 30, 1.0, 0.0),
-        ("P", 2018, 2, 400, 500, 1.25, 25.0),
-        ("Q", 2017, 2, 12, 12, 1.0, 0.0),
-        ("Q", 2018, 1, 100, 120, pytest.approx(1.2), pytest.approx(20.0)),
+        (G, 2017, 3, 42, 42, 1.0, 0.0),
+        (G, 2018, 2, 500, 620, pytest.approx(1.24), pytest.approx(24.0)),
+        (P, 2017, 2, 30, 30, 1.0, 0.0),
+        (P, 2018, 2, 400, 500, 1.25, 25.0),
+        (Q, 2017, 2, 12, 12, 1.0, 0.0),
+        (Q, 2018, 1, 100, 120, pytest.approx(1.2), pytest.approx(20.0)),
     ]
     assert list(out.index) == list(range(6))
-    for c in ("year", "n_months", "sum_modis", "sum_combined"):
+    for c in ("cell", "year", "n_months", "sum_modis", "sum_combined"):
         assert out[c].dtype == "int64", c
     assert out["ratio_combined_modis"].dtype == "float64" and out["excess_pct"].dtype == "float64"
 
@@ -266,18 +273,20 @@ def test_add06_manual_example(monthly_manual):
 def test_add06_empty_input_and_nothing_countable():
     out = add06_union_step(monthly_df([]))
     assert out.empty and list(out.columns) == ADD06_COLUMNS
+    assert out["cell"].dtype == "int64"
     assert out["year"].dtype == "int64" and out["n_months"].dtype == "int64"
     assert out["sum_modis"].dtype == "int64" and out["sum_combined"].dtype == "int64"
     assert out["ratio_combined_modis"].dtype == "float64" and out["excess_pct"].dtype == "float64"
     bare = add06_union_step(pd.DataFrame({c: [] for c in monthly_df([]).columns}))
     assert bare.empty and list(bare.columns) == ADD06_COLUMNS and bare["n_months"].dtype == "int64"
-    # so viirs, ou so um mes invalido: nenhum pais-ano contavel, nada aparece
+    # so viirs, ou so um mes invalido: nenhuma celula-ano contavel, nada aparece (nem a linha global)
     only = add06_union_step(monthly_df([
         {"series": "viirs", "cell_days": 5},
         {"month": 4, "series": "modis", "cell_days": 5, "partial": True},
         {"month": 4, "series": "combined", "cell_days": 5},
     ]))
     assert only.empty and list(only.columns) == ADD06_COLUMNS
+    assert only["cell"].dtype == "int64"
     assert only["sum_modis"].dtype == "int64" and only["excess_pct"].dtype == "float64"
 
 
@@ -301,8 +310,8 @@ def test_add06_month_out_unless_modis_and_combined_both_valid(label, bad_rows):
     rows += [{**r, "month": 2, "year": 2018} for r in bad_rows]
     out = add06_union_step(monthly_df(rows))
     assert tuples(out) == [
-        ("ALL", 2018, 1, 10, 12, pytest.approx(1.2), pytest.approx(20.0)),
-        ("P", 2018, 1, 10, 12, pytest.approx(1.2), pytest.approx(20.0)),
+        (G, 2018, 1, 10, 12, pytest.approx(1.2), pytest.approx(20.0)),
+        (P, 2018, 1, 10, 12, pytest.approx(1.2), pytest.approx(20.0)),
     ], label
 
 
@@ -310,7 +319,7 @@ def test_add06_viirs_series_is_ignored_even_when_invalid_or_huge():
     rows = _pair(modis=10, combined=14) + [
         {"series": "viirs", "cell_days": 10_000, "partial": True, "n_unknown_days": 5}]
     out = add06_union_step(monthly_df(rows))
-    assert tuples(out)[1] == ("P", 2018, 1, 10, 14, pytest.approx(1.4), pytest.approx(40.0))
+    assert tuples(out)[1] == (P, 2018, 1, 10, 14, pytest.approx(1.4), pytest.approx(40.0))
 
 
 def test_add06_max_unknown_days_boundary_inclusive_and_non_default():
@@ -323,7 +332,7 @@ def test_add06_max_unknown_days_boundary_inclusive_and_non_default():
     for max_unk, n_months, sum_modis in ((None, 1, 1), (0, 1, 1), (1, 2, 11), (2, 3, 111), (3, 4, 1111)):
         out = add06_union_step(monthly) if max_unk is None else add06_union_step(monthly, max_unknown_days=max_unk)
         p = tuples(out)[1]
-        assert p[:5] == ("P", 2018, n_months, sum_modis, 2 * sum_modis), max_unk
+        assert p[:5] == (P, 2018, n_months, sum_modis, 2 * sum_modis), max_unk
         assert p[5] == 2.0 and p[6] == 100.0
 
 
@@ -332,93 +341,112 @@ def test_add06_max_unknown_days_applies_to_each_series_separately():
     monthly = monthly_df(_pair(month=1, modis=5, combined=6, n_unknown_days=0)[:1]
                          + _pair(month=1, modis=5, combined=6, n_unknown_days=2)[1:])
     assert add06_union_step(monthly, max_unknown_days=1).empty
-    assert tuples(add06_union_step(monthly, max_unknown_days=2))[1][:5] == ("P", 2018, 1, 5, 6)
+    assert tuples(add06_union_step(monthly, max_unknown_days=2))[1][:5] == (P, 2018, 1, 5, 6)
 
 
 def test_add06_zero_modis_gives_na_ratio_and_excess():
-    # A: modis 0, combined 5 -> sum_modis 0 => ratio e excesso NA (nem inf nem 0)
-    # B: modis 0, combined 0 -> idem (nao 1)
-    # C: modis 10, combined 10 ; ALL = 10, 15 -> 1.5, 50 (sum_modis do total nao e 0)
-    rows = (_pair("A", month=1, modis=0, combined=5) + _pair("B", month=1, modis=0, combined=0)
-            + _pair("C", month=1, modis=10, combined=10) + _pair("C", month=2, modis=0, combined=5))
+    # celula 1: modis 0, combined 5 -> sum_modis 0 => ratio e excesso NA (nem inf nem 0)
+    # celula 2: modis 0, combined 0 -> idem (nao 1)
+    # celula 3: modis 10, combined 10 (mes 1) ; modis 0, combined 5 (mes 2) -> 10, 15 -> 1.5, 50
+    # global: ano 2018 meses distintos {1, 2}: modis 10, combined 20 -> 2.0, 100 (sum_modis do total nao e 0)
+    rows = (_pair(1, month=1, modis=0, combined=5) + _pair(2, month=1, modis=0, combined=0)
+            + _pair(3, month=1, modis=10, combined=10) + _pair(3, month=2, modis=0, combined=5))
     out = add06_union_step(monthly_df(rows))
     assert tuples(out) == [
-        ("A", 2018, 1, 0, 5, None, None),
-        ("ALL", 2018, 2, 10, 20, pytest.approx(2.0), pytest.approx(100.0)),
-        ("B", 2018, 1, 0, 0, None, None),
-        ("C", 2018, 2, 10, 15, pytest.approx(1.5), pytest.approx(50.0)),
+        (G, 2018, 2, 10, 20, pytest.approx(2.0), pytest.approx(100.0)),
+        (1, 2018, 1, 0, 5, None, None),
+        (2, 2018, 1, 0, 0, None, None),
+        (3, 2018, 2, 10, 15, pytest.approx(1.5), pytest.approx(50.0)),
     ]
     assert out["ratio_combined_modis"].dtype == "float64"
-    assert out["ratio_combined_modis"].isna().tolist() == [True, False, True, False]
-    assert out["excess_pct"].isna().tolist() == [True, False, True, False]
+    assert out["ratio_combined_modis"].isna().tolist() == [False, True, True, False]
+    assert out["excess_pct"].isna().tolist() == [False, True, True, False]
 
 
-def test_add06_all_row_ratio_is_na_when_total_modis_is_zero():
-    out = add06_union_step(monthly_df(_pair("A", month=1, modis=0, combined=0)
-                                      + _pair("B", month=1, modis=0, combined=3)))
-    # ALL: sum_modis 0, sum_combined 3, 1 mes distinto => ratio e excesso NA
-    assert tuples(out) == [("A", 2018, 1, 0, 0, None, None),
-                           ("ALL", 2018, 1, 0, 3, None, None),
-                           ("B", 2018, 1, 0, 3, None, None)]
+def test_add06_global_row_ratio_is_na_when_total_modis_is_zero():
+    out = add06_union_step(monthly_df(_pair(1, month=1, modis=0, combined=0)
+                                      + _pair(2, month=1, modis=0, combined=3)))
+    # global: sum_modis 0, sum_combined 3, 1 mes distinto => ratio e excesso NA
+    assert tuples(out) == [(G, 2018, 1, 0, 3, None, None),
+                           (1, 2018, 1, 0, 0, None, None),
+                           (2, 2018, 1, 0, 3, None, None)]
 
 
-def test_add06_all_row_only_adds_countable_months_and_distinct_months():
-    # A mes 1: modis 10 combined 15 (valido). B mes 1: modis 100 valido mas combined parcial -> B fora e
-    # nao entra no ALL. C meses 1 e 2: 1+2, 3+4 ; ALL: meses distintos {1,2} (n_months = 2, nao 3)
-    rows = (_pair("A", month=1, modis=10, combined=15)
-            + [{"country": "B", "year": 2018, "month": 1, "series": "modis", "cell_days": 100},
-               {"country": "B", "year": 2018, "month": 1, "series": "combined", "cell_days": 100, "partial": True}]
-            + _pair("C", month=1, modis=1, combined=3) + _pair("C", month=2, modis=2, combined=4))
+def test_add06_global_ratio_comes_from_sums_not_from_cell_ratios():
+    # celula 1: modis 100, combined 110 (ratio 1.1) ; celula 2: modis 1, combined 3 (ratio 3.0)
+    # global: 101 e 113 -> ratio 113/101 (nao a media 2.05 nem a soma dos racios)
+    out = add06_union_step(monthly_df(_pair(1, modis=100, combined=110) + _pair(2, modis=1, combined=3)))
+    g = out[out["cell"] == G].iloc[0]
+    assert (g["sum_modis"], g["sum_combined"]) == (101, 113)
+    assert g["ratio_combined_modis"] == pytest.approx(113 / 101, rel=1e-12)
+    assert g["excess_pct"] == pytest.approx(100 * (113 / 101 - 1), rel=1e-12)
+
+
+def test_add06_global_row_only_adds_countable_months_and_distinct_months():
+    # celula 1 mes 1: modis 10 combined 15 (valido). celula 2 mes 1: modis 100 valido mas combined parcial ->
+    # fora e nao entra no global. celula 3 meses 1 e 2: 1+2, 3+4 ; global: meses distintos {1,2} (n_months = 2, nao 3)
+    rows = (_pair(1, month=1, modis=10, combined=15)
+            + [{"cell": 2, "year": 2018, "month": 1, "series": "modis", "cell_days": 100},
+               {"cell": 2, "year": 2018, "month": 1, "series": "combined", "cell_days": 100, "partial": True}]
+            + _pair(3, month=1, modis=1, combined=3) + _pair(3, month=2, modis=2, combined=4))
     out = add06_union_step(monthly_df(rows))
     assert [r[:5] for r in tuples(out)] == [
-        ("A", 2018, 1, 10, 15),
-        ("ALL", 2018, 2, 13, 22),
-        ("C", 2018, 2, 3, 7),
+        (G, 2018, 2, 13, 22),
+        (1, 2018, 1, 10, 15),
+        (3, 2018, 2, 3, 7),
     ]
-    all_row = tuples(out)[1]
-    assert all_row[5] == pytest.approx(22 / 13) and all_row[6] == pytest.approx(100 * 9 / 13)
+    g = tuples(out)[0]
+    assert g[5] == pytest.approx(22 / 13) and g[6] == pytest.approx(100 * 9 / 13)
 
 
-def test_add06_years_are_independent_and_ordered_by_country_then_year():
-    # ordenacao textual simples: "AA" < "ALL" < "ZW"; dentro do pais, por ano
-    rows = (_pair("ZW", 2018, 1, 1, 1) + _pair("AA", 2019, 1, 2, 2) + _pair("AA", 2018, 5, 4, 4)
-            + _pair("ZW", 2019, 3, 8, 8))
+def test_add06_years_are_independent_and_ordered_by_cell_then_year():
+    # ordenacao por (cell, year): global (-1) primeiro; dentro da celula, por ano
+    rows = (_pair(9, 2018, 1, 1, 1) + _pair(5, 2019, 1, 2, 2) + _pair(5, 2018, 5, 4, 4)
+            + _pair(9, 2019, 3, 8, 8))
     out = add06_union_step(monthly_df(rows))
     assert [(r[0], r[1], r[2], r[3]) for r in tuples(out)] == [
-        ("AA", 2018, 1, 4), ("AA", 2019, 1, 2),
-        ("ALL", 2018, 2, 5), ("ALL", 2019, 2, 10),
-        ("ZW", 2018, 1, 1), ("ZW", 2019, 1, 8),
+        (G, 2018, 2, 5), (G, 2019, 2, 10),
+        (5, 2018, 1, 4), (5, 2019, 1, 2),
+        (9, 2018, 1, 1), (9, 2019, 1, 8),
     ]
-    # ALL 2018: meses {5} U {1} = 2 distintos ; ALL 2019: {1} U {3} = 2
+    # global 2018: meses {5} U {1} = 2 distintos ; global 2019: {1} U {3} = 2
+
+
+def test_add06_is_sparse_only_cells_with_countable_months():
+    # celula 7 so tem meses invalidos: nao aparece; so o global e a celula 1
+    rows = (_pair(1, modis=4, combined=5)
+            + _pair(7, month=2, modis=9, combined=9, partial=True))
+    out = add06_union_step(monthly_df(rows))
+    assert sorted(set(out["cell"])) == [G, 1]
 
 
 def test_add06_before_2018_union_equals_modis_exactly():
     rows = []
     for year in (2005, 2010, 2017):
         for month, val in ((1, 3), (6, 11), (12, 0)):
-            rows += _pair("P", year, month, val, val) + _pair("Q", year, month, val + 1, val + 1)
+            rows += _pair(P, year, month, val, val) + _pair(Q, year, month, val + 1, val + 1)
     out = add06_union_step(monthly_df(rows))
     pre = out[out["year"] < 2018]
-    assert len(pre) == 9  # (P, Q, ALL) x 3 anos
-    # P 2005: modis = combined = 3 + 11 + 0 = 14 ; Q: 4 + 12 + 1 = 17 ; ALL = 31
-    assert tuples(pre)[:3] == [("ALL", 2005, 3, 31, 31, 1.0, 0.0), ("ALL", 2010, 3, 31, 31, 1.0, 0.0),
-                               ("ALL", 2017, 3, 31, 31, 1.0, 0.0)]
+    assert len(pre) == 9  # (global, P, Q) x 3 anos
+    # P 2005: modis = combined = 3 + 11 + 0 = 14 ; Q: 4 + 12 + 1 = 17 ; global = 31
+    assert tuples(pre)[:3] == [(G, 2005, 3, 31, 31, 1.0, 0.0), (G, 2010, 3, 31, 31, 1.0, 0.0),
+                               (G, 2017, 3, 31, 31, 1.0, 0.0)]
     assert (pre["ratio_combined_modis"] == 1.0).all() and (pre["excess_pct"] == 0.0).all()
 
 
 def test_add06_step_after_2018_ratio_above_one_when_viirs_adds_cells():
     # 2017: combined = modis -> 1.0 ; 2018: viirs acrescenta -> combined 150 > modis 100 -> ratio 1.5, excesso 50
-    rows = (_pair("P", 2017, 7, 100, 100) + _pair("P", 2018, 7, 100, 150)
-            + [{"country": "P", "year": 2018, "month": 7, "series": "viirs", "cell_days": 90}])
+    rows = (_pair(P, 2017, 7, 100, 100) + _pair(P, 2018, 7, 100, 150)
+            + [{"cell": P, "year": 2018, "month": 7, "series": "viirs", "cell_days": 90}])
     out = add06_union_step(monthly_df(rows))
     p = {(r[0], r[1]): r for r in tuples(out)}
-    assert p[("P", 2017)][5:] == (1.0, 0.0)
-    assert p[("P", 2018)][5:] == (1.5, 50.0)
+    assert p[(P, 2017)][5:] == (1.0, 0.0)
+    assert p[(P, 2018)][5:] == (1.5, 50.0)
 
 
 def test_add06_errors():
     base = monthly_df(_pair(modis=1, combined=2))
-    # chave repetida (country, series, year, month), mesmo na serie viirs ou com valores iguais
+    # chave repetida (cell, series, year, month), mesmo na serie viirs ou com valores iguais
     dup = pd.concat([base, base.iloc[[0]]], ignore_index=True)
     with pytest.raises(ValueError, match="repetid"):
         add06_union_step(dup)
@@ -430,12 +458,22 @@ def test_add06_errors():
     for col in base.columns:
         with pytest.raises(ValueError, match=col):
             add06_union_step(base.drop(columns=[col]))
+    # a celula global nao e uma celula real
+    with pytest.raises(ValueError, match="negativo"):
+        add06_union_step(monthly_df(_pair(G, modis=1, combined=2)))
     # mesma chave em series diferentes e meses diferentes NAO e repetida
     ok = monthly_df(_pair(month=1, modis=1, combined=1) + _pair(month=2, modis=1, combined=1))
     assert len(add06_union_step(ok)) == 2
 
 
-@pytest.mark.parametrize("col", ["cell_days", "country", "year", "month", "series", "partial",
+def test_add06_old_country_table_is_rejected_with_missing_cell():
+    # uma tabela no esquema antigo (country em vez de cell) falha com a coluna `cell` em falta
+    old = monthly_df(_pair(modis=1, combined=2)).rename(columns={"cell": "country"})
+    with pytest.raises(ValueError, match="cell"):
+        add06_union_step(old)
+
+
+@pytest.mark.parametrize("col", ["cell_days", "cell", "year", "month", "series", "partial",
                                  "n_unknown_days"])
 def test_add06_missing_values_raise_a_clear_value_error(col):
     base = monthly_df(_pair(modis=1, combined=2))
@@ -463,7 +501,7 @@ def test_add06_does_not_mutate_input(monthly_manual):
 def _random_monthly_rows(seed):
     rng = random.Random(seed)
     rows = []
-    for country in ("AA", "BB", "CC", "DD"):
+    for cell in (11, 12, 13, 14):
         for year in range(2015, 2021):
             for month in range(1, 13):
                 m = rng.randint(1, 40) if rng.random() > 0.2 else 0
@@ -472,7 +510,7 @@ def _random_monthly_rows(seed):
                 for series, val in (("modis", m), ("viirs", v), ("combined", c)):
                     if series != "viirs" and rng.random() < 0.1:
                         continue                                        # linha em falta
-                    rows.append({"country": country, "year": year, "month": month, "series": series,
+                    rows.append({"cell": cell, "year": year, "month": month, "series": series,
                                  "cell_days": val, "partial": rng.random() < 0.1,
                                  "n_unknown_days": rng.choice([0, 0, 0, 0, 1, 2])})
     rng.shuffle(rows)
@@ -482,15 +520,15 @@ def _random_monthly_rows(seed):
 def _oracle_add06(rows, max_unknown_days):
     by_month = {}
     for r in rows:
-        by_month.setdefault((r["country"], r["year"], r["month"]), {})[r["series"]] = r
+        by_month.setdefault((r["cell"], r["year"], r["month"]), {})[r["series"]] = r
 
     def valid(r):
         return (not r["partial"]) and r["n_unknown_days"] <= max_unknown_days
 
-    per_country, per_year = {}, {}
-    for (country, year, month), s in by_month.items():
+    per_cell, per_year = {}, {}
+    for (cell, year, month), s in by_month.items():
         if "modis" in s and "combined" in s and valid(s["modis"]) and valid(s["combined"]):
-            a = per_country.setdefault((country, year), [0, 0, 0, 0])
+            a = per_cell.setdefault((cell, year), [0, 0, 0, 0])
             a[0] += 1
             a[1] += s["modis"]["cell_days"]
             a[2] += s["combined"]["cell_days"]
@@ -500,8 +538,8 @@ def _oracle_add06(rows, max_unknown_days):
             b[1] += s["modis"]["cell_days"]
             b[2] += s["combined"]["cell_days"]
             b[3] += s["viirs"]["cell_days"]
-    expected = {k: (v[0], v[1], v[2], v[3]) for k, v in per_country.items()}
-    expected.update({("ALL", y): (len(v[0]), v[1], v[2], v[3]) for y, v in per_year.items()})
+    expected = {k: (v[0], v[1], v[2], v[3]) for k, v in per_cell.items()}
+    expected.update({(G, y): (len(v[0]), v[1], v[2], v[3]) for y, v in per_year.items()})
     return expected
 
 
@@ -528,9 +566,9 @@ def test_add06_random_vs_pure_python_oracle_and_invariants(seed, max_unknown_day
             assert sc == sm                                              # antes de 2018 combined == modis
             if sm > 0:
                 assert r[5] == 1.0 and r[6] == 0.0
-    # ALL = soma dos paises, e n_months entre o maximo e a soma dos paises
+    # global = soma das celulas, e n_months entre o maximo e a soma das celulas
     for year in {r[1] for r in tuples(out)}:
-        ctry = [r for r in tuples(out) if r[1] == year and r[0] != "ALL"]
-        all_row = [r for r in tuples(out) if r[1] == year and r[0] == "ALL"][0]
-        assert all_row[3] == sum(r[3] for r in ctry) and all_row[4] == sum(r[4] for r in ctry)
-        assert max(r[2] for r in ctry) <= all_row[2] <= min(12, sum(r[2] for r in ctry))
+        cells = [r for r in tuples(out) if r[1] == year and r[0] != G]
+        glob = [r for r in tuples(out) if r[1] == year and r[0] == G][0]
+        assert glob[3] == sum(r[3] for r in cells) and glob[4] == sum(r[4] for r in cells)
+        assert max(r[2] for r in cells) <= glob[2] <= min(12, sum(r[2] for r in cells))

@@ -6,54 +6,54 @@ import datetime as dt
 
 import pandas as pd
 
-# ---- cell_days (saida de eligible_cell_days): country, date, cell, instrument, satellite
-CELL_DAYS_COLUMNS = ["country", "date", "cell", "instrument", "satellite"]
+# ---- cell_days (saida de eligible_cell_days): date, cell, instrument, satellite (sem country)
+CELL_DAYS_COLUMNS = ["date", "cell", "instrument", "satellite"]
 
 
 def cell_days_df(rows):
-    """rows: (country, 'YYYY-MM-DD', cell, instrument, satellite) -> DataFrame com date datetime64 e cell int64."""
+    """rows: ('YYYY-MM-DD', cell, instrument, satellite) -> DataFrame com date datetime64 e cell int64."""
     df = pd.DataFrame(rows, columns=CELL_DAYS_COLUMNS)
     df["date"] = pd.to_datetime(df["date"])
     df["cell"] = df["cell"].astype("int64")
     return df
 
 
-# ---- cell-year (saida de build_cell_year): country, series, cell, year, n_days
-CELL_YEAR_COLUMNS = ["country", "series", "cell", "year", "n_days"]
+# ---- cell-year (saida de build_cell_year): cell, series, year, n_days
+CELL_YEAR_COLUMNS = ["cell", "series", "year", "n_days"]
 
 
 def cell_year_df(rows):
-    """rows: (country, series, cell, year, n_days) -> DataFrame com cell/year/n_days int64."""
+    """rows: (cell, series, year, n_days) -> DataFrame com cell/year/n_days int64."""
     df = pd.DataFrame(rows, columns=CELL_YEAR_COLUMNS)
     return df.astype({"cell": "int64", "year": "int64", "n_days": "int64"})
 
 
 # ---- l1_cal_monthly
-MONTHLY_DEFAULTS = {"country": "P", "series": "modis", "year": 2001, "month": 3,
+MONTHLY_DEFAULTS = {"cell": 1, "series": "modis", "year": 2001, "month": 3,
                     "cell_days": 0, "partial": False, "n_unknown_days": 0}
-MONTHLY_COLUMNS = ["country", "year", "month", "series", "cell_days", "partial", "n_unknown_days"]
+MONTHLY_COLUMNS = ["cell", "year", "month", "series", "cell_days", "partial", "n_unknown_days"]
 
 
 def monthly_df(rows):
     """l1_cal_monthly a partir de uma lista de dicts (so o que difere dos defeitos)."""
     recs_ = [{**MONTHLY_DEFAULTS, **r} for r in rows]
     df = pd.DataFrame.from_records(recs_, columns=list(MONTHLY_DEFAULTS))
-    for c in ("year", "month", "cell_days", "n_unknown_days"):
+    for c in ("cell", "year", "month", "cell_days", "n_unknown_days"):
         df[c] = df[c].astype("int64")
     df["partial"] = df["partial"].astype(bool)
     return df[MONTHLY_COLUMNS]
 
 
 # ---- l1_cal_annual
-ANNUAL_COLUMNS = ["country", "year", "series", "cell_days", "partial", "n_unknown_days"]
+ANNUAL_COLUMNS = ["cell", "year", "series", "cell_days", "partial", "n_unknown_days"]
 
 
 def annual_df(rows):
-    """l1_cal_annual a partir de uma lista de dicts (defeitos: P, modis, 2001, 0, False, 0)."""
-    defaults = {"country": "P", "year": 2001, "series": "modis", "cell_days": 0,
+    """l1_cal_annual a partir de uma lista de dicts (defeitos: celula 1, 2001, modis, 0, False, 0)."""
+    defaults = {"cell": 1, "year": 2001, "series": "modis", "cell_days": 0,
                 "partial": False, "n_unknown_days": 0}
     df = pd.DataFrame.from_records([{**defaults, **r} for r in rows], columns=list(defaults))
-    for c in ("year", "cell_days", "n_unknown_days"):
+    for c in ("cell", "year", "cell_days", "n_unknown_days"):
         df[c] = df[c].astype("int64")
     df["partial"] = df["partial"].astype(bool)
     return df[ANNUAL_COLUMNS]
@@ -74,7 +74,7 @@ def calendar(inst, start, values):
     return [(inst, (d0 + dt.timedelta(days=i)).isoformat(), v) for i, v in enumerate(values)]
 
 
-# ---- processed/ (esquema do notebook 01), para o ADD-05
+# ---- processed/ (esquema do notebook 01), para o ADD-05 (`country` existe mas as metricas ignoram-no)
 PROCESSED_DEFAULTS = {
     "country": "Testland", "instrument": "MODIS", "satellite": "Terra",
     "latitude": 10.05, "longitude": 20.05, "acq_date": "2020-01-01",
