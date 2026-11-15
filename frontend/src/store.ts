@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { toast } from 'sonner'
 import { fetchFeature } from './api/client'
-import type { AnomalyEntry, CalendarEntry, Hotspot, Place, View } from './types'
+import type { AnomalyEntry, AreaQuery, CalendarEntry, Hotspot, Place, View } from './types'
 
 const today = new Date().toISOString().slice(0, 10)
 
@@ -21,24 +21,32 @@ interface AppState {
 
   view: View | null // which result panel is open
 
+  basemap: 'dark' | 'satellite'
+  terrain3d: boolean
+  replayTime: number | null // ms timestamp shown by the replay, null = show everything
+  replayPlaying: boolean
+
   setPlace: (p: Place | null) => void
   setRadius: (km: number) => void
   setDates: (from: string, to: string) => void
   openView: (v: View | null) => void
   analyze: () => Promise<void>
   loadHotspots: () => Promise<void>
+  setBasemap: (b: 'dark' | 'satellite') => void
+  setTerrain3d: (on: boolean) => void
+  setReplay: (time: number | null, playing?: boolean) => void
 }
 
 export const DATA_START = '2001-01-01'
 export const TODAY = today
 
-function request(s: AppState, extra: object = {}) {
+function request(s: AppState, extra: Partial<AreaQuery> = {}): AreaQuery {
   return {
     lat: s.place!.lat,
     lon: s.place!.lon,
-    radius_km: s.radiusKm,
-    date_from: s.dateFrom,
-    date_to: s.dateTo,
+    radiusKm: s.radiusKm,
+    dateFrom: s.dateFrom,
+    dateTo: s.dateTo,
     ...extra,
   }
 }
@@ -56,10 +64,18 @@ export const useApp = create<AppState>((set, get) => ({
   hotspotsLoading: false,
   view: null,
 
+  basemap: 'dark',
+  terrain3d: true,
+  replayTime: null,
+  replayPlaying: false,
+
   // A new place or new parameters make old results stale.
-  setPlace: (place) => set({ place, status: 'idle', calendar: null, anomalies: null, hotspots: null, view: null }),
-  setRadius: (radiusKm) => set({ radiusKm, status: 'idle', hotspots: null }),
-  setDates: (dateFrom, dateTo) => set({ dateFrom, dateTo, status: 'idle', hotspots: null }),
+  setPlace: (place) => set({ place, status: 'idle', calendar: null, anomalies: null, hotspots: null, view: null, replayTime: null, replayPlaying: false }),
+  setRadius: (radiusKm) => set({ radiusKm, status: 'idle', hotspots: null, replayTime: null, replayPlaying: false }),
+  setDates: (dateFrom, dateTo) => set({ dateFrom, dateTo, status: 'idle', hotspots: null, replayTime: null, replayPlaying: false }),
+  setBasemap: (basemap) => set({ basemap }),
+  setTerrain3d: (terrain3d) => set({ terrain3d }),
+  setReplay: (replayTime, playing) => set({ replayTime, replayPlaying: playing ?? (replayTime !== null && get().replayPlaying) }),
   openView: (view) => set({ view }),
 
   analyze: async () => {
@@ -80,7 +96,7 @@ export const useApp = create<AppState>((set, get) => ({
     if (!s.place) return
     set({ hotspotsLoading: true })
     try {
-      const res = await fetchFeature('hotspots', request(s, { max_points: 5000 }))
+      const res = await fetchFeature('hotspots', request(s, { maxPoints: 5000 }))
       const hotspots = res.hotspots ?? []
       set({ hotspots, hotspotsLoading: false })
       toast.success(`${hotspots.length.toLocaleString('en')} hotspots on the map`, {

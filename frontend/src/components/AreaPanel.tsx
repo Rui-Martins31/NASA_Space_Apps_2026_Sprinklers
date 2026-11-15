@@ -4,6 +4,7 @@ import { ArrowRight, CircleNotch, Info } from '@phosphor-icons/react'
 import clsx from 'clsx'
 import { useEffect, useState, type ReactNode } from 'react'
 import { DATA_START, TODAY, useApp } from '../store'
+import DatePicker from './DatePicker'
 import { currentVsMedian, MONTHS, yearTotals } from '../lib/stats'
 
 const RADII = [5, 25, 50, 100, 150, 300]
@@ -25,7 +26,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
     <button
       onClick={onClick}
       className={clsx(
-        'h-7 rounded-[6px] px-2.5 text-xs transition-colors duration-150',
+        'h-7 rounded-[6px] px-1.5 text-[11px] whitespace-nowrap transition-colors duration-150',
         active ? 'bg-ember-500/15 text-ember-300 ring-1 ring-ember-500/40' : 'text-fg-muted ring-1 ring-line hover:bg-ink-700 hover:text-fg',
       )}
     >
@@ -107,7 +108,7 @@ export default function AreaPanel() {
             </Slider.Track>
           </Slider.Control>
         </Slider.Root>
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        <div className="mt-3 grid grid-cols-6 gap-1">
           {RADII.map((r) => (
             <Chip key={r} active={radiusKm === r} onClick={() => setRadius(r)}>
               <span className="font-mono">{r}</span> km
@@ -120,24 +121,8 @@ export default function AreaPanel() {
       <div className="px-5 pt-5">
         <Label>Period</Label>
         <div className="grid grid-cols-2 gap-2">
-          {(
-            [
-              ['From', dateFrom, (v: string) => setDates(v, dateTo)],
-              ['To', dateTo, (v: string) => setDates(dateFrom, v)],
-            ] as const
-          ).map(([lbl, val, on]) => (
-            <label key={lbl} className="block rounded-[10px] bg-ink-800 px-3 py-2 ring-1 ring-line focus-within:ring-ember-500/60">
-              <span className="block text-[10px] uppercase tracking-[0.08em] text-fg-muted">{lbl}</span>
-              <input
-                type="date"
-                value={val}
-                min={DATA_START}
-                max={TODAY}
-                onChange={(e) => e.target.value && on(e.target.value)}
-                className="w-full bg-transparent font-mono text-[13px] text-fg outline-none"
-              />
-            </label>
-          ))}
+          <DatePicker label="From" value={dateFrom} min={DATA_START} max={dateTo} onChange={(v) => setDates(v, dateTo)} />
+          <DatePicker label="To" value={dateTo} min={dateFrom} max={TODAY} onChange={(v) => setDates(dateFrom, v)} />
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {RANGES.map((r) => (

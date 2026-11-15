@@ -71,9 +71,9 @@ export function topMonths(cal: CalendarEntry[], n = 5) {
 }
 
 /** Yearly anomaly = sum over the year of (count - monthly mean). */
-export function yearlyAnomalies(anoms: { year: number; anomaly: number }[]) {
+export function yearlyAnomalies(anoms: { year: number; count: number; mean: number }[]) {
   const map = new Map<number, number>()
-  for (const a of anoms) map.set(a.year, (map.get(a.year) ?? 0) + a.anomaly)
+  for (const a of anoms) map.set(a.year, (map.get(a.year) ?? 0) + a.count - a.mean)
   return [...map.entries()].map(([year, anomaly]) => ({ year, anomaly: Math.round(anomaly) }))
 }
 

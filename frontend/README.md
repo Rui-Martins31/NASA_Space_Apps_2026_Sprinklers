@@ -12,15 +12,13 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. By default the app uses **fake data generated in the browser**, so it works without the backend.
+Open http://localhost:5173. By default the app calls the **real backend**, so start it first (see [../backend/README.md](../backend/README.md)); it must run on `127.0.0.1:8080`, or set `VITE_API_TARGET` in `.env`.
 
-## Connect the real backend
+The browser calls `/api/...` on the Vite server, which forwards it to the backend. The contract is [spec/api/frontend-backend.md](../spec/api/frontend-backend.md); the matching TypeScript shapes are in `src/types.ts`.
 
-1. Start the backend on `127.0.0.1:8080`.
-2. In `.env`, set `VITE_USE_MOCK=false` (and change `VITE_API_TARGET` if the backend runs elsewhere).
-3. Restart `npm run dev`.
+## Work without the backend
 
-The browser calls `/api/...` on the Vite server, which forwards it to the backend, so the backend does not need CORS settings. The contract is in `API.md`.
+Create `.env` with `VITE_USE_MOCK=true` (see `.env.example`) and restart `npm run dev`. The app then uses fake data generated in the browser, in the same format as the backend.
 
 ## Where things are
 

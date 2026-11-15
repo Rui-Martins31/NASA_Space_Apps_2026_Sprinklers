@@ -1,6 +1,8 @@
 // Fake backend used while the real one is not ready (VITE_USE_MOCK=true).
-// It returns data in exactly the same shape as the agreed API.
-import type { AnomalyEntry, ApiRequest, ApiResponse, CalendarEntry, Feature, Hotspot } from '../types'
+// It returns data in exactly the same shape as the backend (spec/api/frontend-backend.md).
+import type { AnomalyEntry, ApiRequest, ApiResponse, CalendarEntry, ConfidenceClass, Feature, Hotspot } from '../types'
+
+const CONFIDENCE: ConfidenceClass[] = ['low', 'nominal', 'high']
 
 // Small seeded random generator, so the same place always gives the same data.
 function rng(seed: number) {
@@ -21,9 +23,9 @@ function seedFor(req: ApiRequest) {
 
 function buildCalendar(req: ApiRequest): CalendarEntry[] {
   const rand = rng(seedFor(req))
-  const scale = (req.radius_km / 150) ** 2 * 1400 // more area, more hotspots
-  const from = new Date(req.date_from)
-  const to = new Date(req.date_to)
+  const scale = (req.radius / 150) ** 2 * 1400 // more area, more hotspots
+  const from = new Date(req.date_time_from)
+  const to = new Date(req.date_time_to)
   const out: CalendarEntry[] = []
   for (let y = from.getFullYear(); y <= to.getFullYear(); y++) {
     for (let m = 1; m <= 12; m++) {
@@ -47,15 +49,15 @@ function buildAnomalies(calendar: CalendarEntry[]): AnomalyEntry[] {
     return vals.reduce((a, b) => a + b, 0) / Math.max(vals.length, 1)
   })
   return calendar.map((c) => {
-    const mean = Math.round(means[c.month - 1] * 10) / 10
-    return { ...c, mean, anomaly: Math.round((c.count - mean) * 10) / 10 }
+    const mean = Math.round(means[c.month - 1] * 100) / 100
+    return { ...c, mean, anomaly: c.count > mean ? 'above' : 'normal' }
   })
 }
 
 function buildHotspots(req: ApiRequest, calendar: CalendarEntry[]): Hotspot[] {
   const rand = rng(seedFor(req) + 7)
   const total = calendar.reduce((a, c) => a + c.count, 0)
-  const n = Math.min(total, req.max_points ?? 5000)
+  const n = Math.min(total, req.max_points ?? 1000)
   const weights = calendar.map((c) => c.count / Math.max(total, 1))
   const out: Hotspot[] = []
   for (let i = 0; i < n; i++) {
@@ -64,17 +66,14 @@ function buildHotspots(req: ApiRequest, calendar: CalendarEntry[]): Hotspot[] {
     while (k < weights.length - 1 && r > weights[k]) r -= weights[k++]
     const { year, month } = calendar[k]
     const ang = rand() * Math.PI * 2
-    const dist = (req.radius_km / 111) * Math.sqrt(rand())
+    const dist = (req.radius / 111) * Math.sqrt(rand())
     const lat = req.lat + dist * Math.sin(ang)
     const lon = req.lon + (dist * Math.cos(ang)) / Math.cos((req.lat * Math.PI) / 180)
-    const sats = year < 2012 ? ['Terra', 'Aqua'] : year < 2018 ? ['Aqua', 'S-NPP'] : ['S-NPP', 'NOAA-20', 'NOAA-21']
     out.push({
       lat: +lat.toFixed(4),
       lon: +lon.toFixed(4),
-      date: `${year}-${String(month).padStart(2, '0')}-${String(1 + Math.floor(rand() * 28)).padStart(2, '0')}`,
-      satellite: sats[Math.floor(rand() * sats.length)],
-      confidence: ['low', 'nominal', 'high'][Math.floor(rand() * 3)],
-      frp: +(2 + rand() ** 3 * 180).toFixed(1),
+      date_time: `${year}-${String(month).padStart(2, '0')}-${String(1 + Math.floor(rand() * 28)).padStart(2, '0')}T${String(Math.floor(rand() * 24)).padStart(2, '0')}:00:00`,
+      confidence_class: CONFIDENCE[Math.floor(rand() * 3)],
     })
   }
   return out
@@ -82,7 +81,7 @@ function buildHotspots(req: ApiRequest, calendar: CalendarEntry[]): Hotspot[] {
 
 export async function mockFetch(feature: Feature, req: ApiRequest): Promise<ApiResponse> {
   await new Promise((r) => setTimeout(r, 500 + Math.random() * 400)) // pretend network
-  if (req.radius_km < 1 || req.radius_km > 500) throw new Error('radius_km must be between 1 and 500')
+  if (!(req.radius > 0 && req.radius <= 1000)) throw new Error('radius must be between 0 and 1000')
   const calendar = buildCalendar(req)
   switch (feature) {
     case 'calendar':
