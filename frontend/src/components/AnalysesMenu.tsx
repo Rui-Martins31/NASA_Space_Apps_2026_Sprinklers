@@ -12,6 +12,7 @@ import {
   CircleNotch,
   PlayCircle,
   FilePdf,
+  Gauge,
 } from '@phosphor-icons/react'
 import type { Icon } from '@phosphor-icons/react'
 import clsx from 'clsx'
@@ -61,7 +62,7 @@ export default function AnalysesMenu() {
   // Opening a chart before analyzing runs the analysis first.
   const show = (v: View) => () => {
     openView(v)
-    if (status !== 'ready' && v !== 'about') analyze()
+    if (status !== 'ready' && v !== 'about' && v !== 'metrics') analyze()
   }
 
   async function exportHotspots() {
@@ -129,6 +130,7 @@ export default function AnalysesMenu() {
       busy: hotspotsLoading,
     },
     { id: 'replay', label: t('menu.replay'), icon: PlayCircle, tint: 'bg-ember-500/15 text-ember-300', run: startReplay, active: replayTime !== null },
+    { id: 'metrics', label: t('menu.metrics'), icon: Gauge, tint: 'bg-[#4fd1a5]/15 text-[#7ee0bf]', run: show('metrics'), active: view === 'metrics' },
   ]
   const exports: Item[] = [
     { id: 'csv', label: t('menu.hotspotsCsv'), icon: FileCsv, tint: 'bg-[#4fd1a5]/15 text-[#4fd1a5]', run: exportHotspots },

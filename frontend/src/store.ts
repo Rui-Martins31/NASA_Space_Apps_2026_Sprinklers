@@ -4,6 +4,8 @@ import { create } from 'zustand'
 import { toast } from 'sonner'
 import { fetchFeature } from './api/client'
 import { translate, type Lang } from './i18n'
+import { fetchMetric, MetricMissing, type MetricResponse } from './api/metrics'
+import { DEFAULT_SELECTION } from './lib/metricsCatalog'
 import type { AnomalyEntry, AreaQuery, CalendarEntry, Hotspot, Place, View } from './types'
 
 const today = new Date().toISOString().slice(0, 10)
@@ -21,6 +23,22 @@ export interface HotspotWindow {
   to: string
   year: number
   month: number
+}
+
+export type MetricResult =
+  | { status: 'loading' }
+  | { status: 'ok'; data: MetricResponse }
+  | { status: 'missing' } // backend does not offer this metric yet
+  | { status: 'error'; message: string }
+
+function initialMetrics(): string[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem('firecal-metrics') ?? 'null')
+    if (Array.isArray(saved)) return saved
+  } catch {
+    /* storage not available */
+  }
+  return DEFAULT_SELECTION
 }
 
 function initialLang(): Lang {
@@ -50,6 +68,10 @@ interface AppState {
   view: View | null // which result panel is open
   calendarScale: CalendarScale
 
+  metricSelection: string[] // metric codes the user wants to see
+  metricResults: Record<string, MetricResult>
+  metricsFor: string // which area/period the results belong to
+
   basemap: 'dark' | 'satellite'
   terrain3d: boolean
   replayTime: number | null // ms timestamp shown by the replay, null = show everything
@@ -67,6 +89,8 @@ interface AppState {
   setBasemap: (b: 'dark' | 'satellite') => void
   setTerrain3d: (on: boolean) => void
   setReplay: (time: number | null, playing?: boolean) => void
+  setMetricSelection: (codes: string[]) => void
+  loadMetrics: () => Promise<void>
 }
 
 function request(s: AppState, extra: Partial<AreaQuery> = {}): AreaQuery {
@@ -97,6 +121,9 @@ export const useApp = create<AppState>((set, get) => ({
   hotspotWindow: null,
   view: null,
   calendarScale: 'absolute',
+  metricSelection: initialMetrics(),
+  metricResults: {},
+  metricsFor: '',
 
   basemap: 'dark',
   terrain3d: true,
@@ -122,6 +149,39 @@ export const useApp = create<AppState>((set, get) => ({
   openView: (view) => set({ view }),
   setCalendarScale: (calendarScale) => set({ calendarScale }),
   clearHotspots: () => set(noHotspots),
+  setMetricSelection: (metricSelection) => {
+    try {
+      localStorage.setItem('firecal-metrics', JSON.stringify(metricSelection))
+    } catch {
+      /* storage not available */
+    }
+    set({ metricSelection })
+    get().loadMetrics()
+  },
+
+  // Fetches the selected metrics that are not loaded yet for the current area and period.
+  loadMetrics: async () => {
+    const s = get()
+    if (!s.place) return
+    const key = `${s.place.lat},${s.place.lon},${s.radiusKm},${s.dateFrom},${s.dateTo}`
+    const results = s.metricsFor === key ? { ...s.metricResults } : {}
+    const todo = s.metricSelection.filter((c) => !results[c] || results[c].status === 'error')
+    if (!todo.length && s.metricsFor === key) return
+    for (const c of todo) results[c] = { status: 'loading' }
+    set({ metricResults: results, metricsFor: key })
+    const q = request(s)
+    await Promise.all(
+      todo.map(async (code) => {
+        let r: MetricResult
+        try {
+          r = { status: 'ok', data: await fetchMetric(code, q) }
+        } catch (e) {
+          r = e instanceof MetricMissing ? { status: 'missing' } : { status: 'error', message: (e as Error).message }
+        }
+        if (get().metricsFor === key) set({ metricResults: { ...get().metricResults, [code]: r } })
+      }),
+    )
+  },
 
   analyze: async () => {
     const s = get()

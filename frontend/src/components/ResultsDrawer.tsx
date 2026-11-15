@@ -7,6 +7,9 @@ import { useT, type TKey } from '../i18n'
 import CalendarHeatmap from './views/CalendarHeatmap'
 import EmptyState, { totalHotspots } from './EmptyState'
 import { AboutView, RankingView, SeasonalChart, TrendView } from './views/Charts'
+import MetricsView from './views/MetricsView'
+import { METRICS, metricName } from '../lib/metricsCatalog'
+import { downloadCsv, slug } from '../lib/stats'
 import { calendarSvg, chartFromDom, downloadPng, downloadSvg, exportFilename, frameSvg, type ExportMeta } from '../lib/export'
 import type { View } from '../types'
 
@@ -15,6 +18,7 @@ const TITLE: Record<View, TKey> = {
   trend: 'view.trend',
   seasonal: 'view.seasonal',
   ranking: 'view.ranking',
+  metrics: 'view.metrics',
   about: 'view.about',
 }
 const EXPORTABLE: View[] = ['calendar', 'trend', 'seasonal']
@@ -53,8 +57,29 @@ export default function ResultsDrawer() {
     }
   }
 
+  // Metrics as CSV: exactly the values shown, as received from the backend
+  function exportMetrics() {
+    const s = useApp.getState()
+    if (!place) return
+    const rows = METRICS.filter((m) => s.metricSelection.includes(m.code)).map((m) => {
+      const r = s.metricResults[m.code]
+      const ok = r?.status === 'ok' ? r.data : null
+      return {
+        id: m.id,
+        metric: metricName(m, lang),
+        value: ok ? (typeof ok.value === 'object' ? JSON.stringify(ok.value) : String(ok.value ?? '')) : '',
+        unit: ok?.unit ?? m.unit,
+        note: ok?.note ?? (r?.status === 'missing' ? t('metrics.missing') : ''),
+        area: `${place.label} (${radiusKm} km)`,
+        period: `${dateFrom} / ${dateTo}`,
+      }
+    })
+    downloadCsv(`metrics_${slug(place.label)}_${dateFrom}_${dateTo}.csv`, rows)
+  }
+
   const body = () => {
     if (view === 'about') return <AboutView />
+    if (view === 'metrics') return <MetricsView />
     if (status === 'loading' || !calendar)
       return (
         <div className="flex h-60 items-center justify-center gap-2 text-sm text-fg-muted">
@@ -96,6 +121,15 @@ export default function ResultsDrawer() {
               )}
             </div>
             <div className="flex items-center gap-1">
+              {view === 'metrics' && place && (
+                <button
+                  onClick={exportMetrics}
+                  title={t('export.saveAs')}
+                  className="mr-1 flex h-7 items-center gap-1 rounded-[6px] px-2 font-mono text-[11px] text-fg-muted ring-1 ring-line hover:bg-ink-700 hover:text-fg"
+                >
+                  <DownloadSimple size={13} /> CSV
+                </button>
+              )}
               {hasData && EXPORTABLE.includes(view) && (
                 <div className="mr-1 flex items-center gap-1" title={t('export.saveAs')}>
                   <DownloadSimple size={14} className="text-fg-muted" />

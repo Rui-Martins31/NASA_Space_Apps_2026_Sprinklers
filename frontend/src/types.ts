@@ -62,4 +62,4 @@ export interface Place {
   lon: number
 }
 
-export type View = 'calendar' | 'trend' | 'seasonal' | 'ranking' | 'about'
+export type View = 'calendar' | 'trend' | 'seasonal' | 'ranking' | 'metrics' | 'about'

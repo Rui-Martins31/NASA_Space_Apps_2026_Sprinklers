@@ -9,6 +9,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     server: {
+      // the metrics catalogue is read from ../spec/metricas_modis_viirs.csv (outside frontend/)
+      fs: { allow: ['..'] },
       proxy: {
         '/api': {
           target: env.VITE_API_TARGET || 'http://127.0.0.1:8080',
