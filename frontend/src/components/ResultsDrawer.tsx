@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { X, CircleNotch } from '@phosphor-icons/react'
 import { useApp } from '../store'
 import CalendarHeatmap from './views/CalendarHeatmap'
+import EmptyState, { totalHotspots } from './EmptyState'
 import { AboutView, AnomaliesChart, RankingView, SeasonalChart } from './views/Charts'
 import type { View } from '../types'
 
@@ -34,7 +35,7 @@ export default function ResultsDrawer() {
           <CircleNotch size={18} className="animate-spin" /> Loading data…
         </div>
       )
-    if (!calendar.length) return <p className="text-sm text-fg-muted">No hotspots were detected in this area and period.</p>
+    if (totalHotspots(calendar) === 0) return <EmptyState />
     switch (view) {
       case 'calendar':
         return <CalendarHeatmap calendar={calendar} />

@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import { useEffect, useState, type ReactNode } from 'react'
 import { DATA_START, TODAY, useApp } from '../store'
 import DatePicker from './DatePicker'
+import EmptyState, { totalHotspots } from './EmptyState'
 import { currentVsMedian, MONTHS, yearTotals } from '../lib/stats'
 
 const RADII = [5, 25, 50, 100, 150, 300]
@@ -76,7 +77,8 @@ export default function AreaPanel() {
   const { setRadius, setDates, analyze } = useApp.getState()
   if (!place) return null
 
-  const kpi = calendar ? currentVsMedian(calendar, dateTo) : null
+  const empty = status === 'ready' && totalHotspots(calendar) === 0
+  const kpi = calendar && !empty ? currentVsMedian(calendar, dateTo) : null
   const peak = calendar ? [...yearTotals(calendar)].sort((a, b) => b.count - a.count)[0] : null
 
   return (
@@ -154,6 +156,13 @@ export default function AreaPanel() {
       </div>
 
       {/* Quick results */}
+      {empty && (
+        <>
+          <div className="h-px bg-line" />
+          <EmptyState compact />
+        </>
+      )}
+
       {kpi && (
         <>
           <div className="h-px bg-line" />

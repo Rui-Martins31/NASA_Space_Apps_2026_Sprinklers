@@ -98,6 +98,11 @@ export const useApp = create<AppState>((set, get) => ({
     try {
       const res = await fetchFeature('hotspots', request(s, { maxPoints: 5000 }))
       const hotspots = res.hotspots ?? []
+      if (!hotspots.length) {
+        set({ hotspots: null, hotspotsLoading: false })
+        toast('No hotspots to show', { description: 'Nothing was detected in this area and period. Try a larger radius or a longer period.' })
+        return
+      }
       set({ hotspots, hotspotsLoading: false })
       toast.success(`${hotspots.length.toLocaleString('en')} hotspots on the map`, {
         description: hotspots.length >= 5000 ? 'Showing a sample of 5,000 points.' : undefined,
