@@ -31,6 +31,7 @@ listed in `config.METRICS`.
 | `src/database/pipeline_database.py` | The pipeline's database (not connected yet) |
 | `test/mock_data/` | The mock CSV files ([README](test/mock_data/README.md)) |
 | `test/` | Tests and the scripts that generate the mock data |
+| `deploy/` | Production deployment to Google Cloud Run ([README](deploy/README.md)) |
 
 ## Run
 
