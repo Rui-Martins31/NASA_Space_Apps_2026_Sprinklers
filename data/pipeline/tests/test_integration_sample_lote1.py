@@ -2,6 +2,8 @@
 
 Corre so se SPRINKLERS_SAMPLE_PARQUET apontar para o ficheiro. Esperado (verificado no
 notebook 01): 261 363 linhas, 163 paises, 0 horas invalidas, so o satelite Terra.
+As metricas sao por celula (grelha por defeito, 0.1 graus); o numero de paises so serve de controlo
+do ficheiro. A soma das tabelas por celula tem de bater com o total de linhas validas.
 """
 import os
 from pathlib import Path
@@ -10,7 +12,8 @@ import pandas as pd
 import pytest
 
 from metrics.calendar_metrics import (
-    cal_annual, cal_coverage, cal_daily, cal_monthly, eligible_cell_days, global_day_counts,
+    cal_annual, cal_coverage, cal_daily, cal_monthly, densify_annual, densify_monthly,
+    eligible_cell_days, global_day_counts, month_validity, year_validity,
 )
 from metrics.counts import (
     obs01_raw_counts, obs02_confidence_dist, obs03_filtered_counts, qa02_retention,
@@ -47,15 +50,20 @@ def test_counts_are_consistent_on_real_data(sample):
 
 
 def test_calendar_totals_are_consistent_on_real_data(sample):
-    daily = cal_daily(eligible_cell_days(sample))
+    cell_days = eligible_cell_days(sample)
+    daily = cal_daily(cell_days)
     cov = cal_coverage(global_day_counts(sample))
-    monthly = cal_monthly(daily, cov, sorted(sample["country"].unique()))
+    monthly = cal_monthly(cell_days, cov)
     annual = cal_annual(monthly)
-    for s in ("modis", "combined"):
-        d = daily.loc[daily["series"] == s, "n_cells"].sum()
+    n_modis, n_combined = int(daily["in_modis"].sum()), int((daily["in_modis"] | daily["in_viirs"]).sum())
+    for s, d in (("modis", n_modis), ("combined", n_combined)):
         assert monthly.loc[monthly["series"] == s, "cell_days"].sum() == d
         assert annual.loc[annual["series"] == s, "cell_days"].sum() == d
-    assert (daily.loc[daily["series"] == "modis", "n_cells"].sum()
-            == daily.loc[daily["series"] == "combined", "n_cells"].sum())     # sem VIIRS: iguais
-    assert annual.loc[annual["series"] == "modis", "partial"].all()           # 2000 comeca em novembro
+    assert n_modis == n_combined                                              # sem VIIRS: iguais
+    assert not daily["in_viirs"].any()
+    validity = month_validity(cov)
+    dense = densify_monthly(monthly, validity)
+    assert dense["cell_days"].sum() == monthly["cell_days"].sum()             # a densificacao nao inventa atividade
+    dense_annual = densify_annual(annual, year_validity(validity))
+    assert dense_annual.loc[dense_annual["series"] == "modis", "partial"].all()    # 2000 comeca em novembro
     assert cov["date"].min() == pd.Timestamp("2000-11-01")

@@ -12,11 +12,11 @@ from helpers_lote4 import monthly_df, recs
 from helpers_lote4_b import annual_df, annual_series
 from metrics.history_cumulative import his07_ytd, his08_yoy, his10_trend
 
-YTD_COLS = ["country", "series", "year", "month", "ytd_cell_days", "comparable",
+YTD_COLS = ["cell", "series", "year", "month", "ytd_cell_days", "comparable",
             "n_ref_years", "ref_ytd_mean", "ytd_diff"]
-YOY_COLS = ["country", "series", "year", "month", "cell_days", "prev_cell_days",
+YOY_COLS = ["cell", "series", "year", "month", "cell_days", "prev_cell_days",
             "valid_pair", "diff_abs", "yoy_pct"]
-TREND_COLS = ["country", "series", "n_years", "first_year", "last_year",
+TREND_COLS = ["cell", "series", "n_years", "first_year", "last_year",
               "slope_per_year", "intercept", "slope_p025", "slope_p975"]
 
 
@@ -43,15 +43,15 @@ def test_his07_hand_example():
     # mes 2 (ytd 3,4,8): 2001 ref (4+8)/2=6; 2002 ref (3+8)/2=5.5; 2003 ref (3+4)/2=3.5
     # mes 3 (ytd 6,6,9): 2001 ref (6+9)/2=7.5; 2002 ref 7.5; 2003 ref (6+6)/2=6
     assert ytd_rows(out) == [
-        ("P", "modis", 2001, 1, 1, True, 2, 2.5, -1.5),
-        ("P", "modis", 2001, 2, 3, True, 2, 6.0, -3.0),
-        ("P", "modis", 2001, 3, 6, True, 2, 7.5, -1.5),
-        ("P", "modis", 2002, 1, 2, True, 2, 2.0, 0.0),
-        ("P", "modis", 2002, 2, 4, True, 2, 5.5, -1.5),
-        ("P", "modis", 2002, 3, 6, True, 2, 7.5, -1.5),
-        ("P", "modis", 2003, 1, 3, True, 2, 1.5, 1.5),
-        ("P", "modis", 2003, 2, 8, True, 2, 3.5, 4.5),
-        ("P", "modis", 2003, 3, 9, True, 2, 6.0, 3.0)]
+        (1, "modis", 2001, 1, 1, True, 2, 2.5, -1.5),
+        (1, "modis", 2001, 2, 3, True, 2, 6.0, -3.0),
+        (1, "modis", 2001, 3, 6, True, 2, 7.5, -1.5),
+        (1, "modis", 2002, 1, 2, True, 2, 2.0, 0.0),
+        (1, "modis", 2002, 2, 4, True, 2, 5.5, -1.5),
+        (1, "modis", 2002, 3, 6, True, 2, 7.5, -1.5),
+        (1, "modis", 2003, 1, 3, True, 2, 1.5, 1.5),
+        (1, "modis", 2003, 2, 8, True, 2, 3.5, 4.5),
+        (1, "modis", 2003, 3, 9, True, 2, 6.0, 3.0)]
     assert out["comparable"].dtype == bool
 
 
@@ -121,24 +121,24 @@ def test_his07_missing_month_makes_ytd_na():
     rows += year_months(2002, [1, 1, 1])
     out = his07_ytd(monthly_df(rows), min_ref_years=1)
     assert ytd_rows(out) == [
-        ("P", "modis", 2001, 1, 4, True, 1, 1.0, 3.0),
-        ("P", "modis", 2001, 3, None, False, 1, None, None),
-        ("P", "modis", 2002, 1, 1, True, 1, 4.0, -3.0),
-        ("P", "modis", 2002, 2, 2, True, 0, None, None),
-        ("P", "modis", 2002, 3, 3, True, 0, None, None)]
+        (1, "modis", 2001, 1, 4, True, 1, 1.0, 3.0),
+        (1, "modis", 2001, 3, None, False, 1, None, None),
+        (1, "modis", 2002, 1, 1, True, 1, 4.0, -3.0),
+        (1, "modis", 2002, 2, 2, True, 0, None, None),
+        (1, "modis", 2002, 3, 3, True, 0, None, None)]
     # mes 3 de 2002 nao usa 2001 como referencia (ytd NA, nao comparavel)
 
 
 def test_his07_groups_are_independent():
     rows = list(THREE_YEARS)
-    rows += [{**r, "country": "Q"} for r in year_months(2001, [100, 100, 100])]
+    rows += [{**r, "cell": 2} for r in year_months(2001, [100, 100, 100])]
     rows += [{**r, "series": "viirs"} for r in year_months(2001, [50, 50, 50])]
     out = his07_ytd(monthly_df(rows), min_ref_years=1)
-    q = out[out["country"] == "Q"]
+    q = out[out["cell"] == 2]
     v = out[out["series"] == "viirs"]
     assert q["ytd_cell_days"].tolist() == [100, 200, 300] and q["n_ref_years"].tolist() == [0, 0, 0]
     assert v["ytd_cell_days"].tolist() == [50, 100, 150] and v["n_ref_years"].tolist() == [0, 0, 0]
-    base = out[(out["country"] == "P") & (out["series"] == "modis")]
+    base = out[(out["cell"] == 1) & (out["series"] == "modis")]
     assert base["n_ref_years"].tolist() == [2] * 9
 
 
@@ -150,7 +150,7 @@ def test_his07_empty_and_missing_columns():
 
 
 def test_his07_order_invariance():
-    df = monthly_df(THREE_YEARS + [{**r, "country": "Q"} for r in year_months(2001, [9, 9, 9])])
+    df = monthly_df(THREE_YEARS + [{**r, "cell": 2} for r in year_months(2001, [9, 9, 9])])
     ref = his07_ytd(df, min_ref_years=2)
     shuffled = df.sample(frac=1, random_state=3).reset_index(drop=True)
     pd.testing.assert_frame_equal(his07_ytd(shuffled, min_ref_years=2), ref)
@@ -204,13 +204,13 @@ def test_his08_hand_example():
     out = his08_yoy(monthly_df(rows))
     assert list(out.columns) == YOY_COLS
     assert ytd_rows(out, YOY_COLS) == [
-        ("P", "modis", 2001, 3, 10, None, False, None, None),
-        ("P", "modis", 2002, 3, 15, 10, True, 5, 50.0),
-        ("P", "modis", 2003, 3, 0, 15, True, -15, -100.0),
-        ("P", "modis", 2004, 3, 5, 0, True, 5, None),
-        ("P", "modis", 2006, 3, 8, None, False, None, None),
-        ("P", "modis", 2007, 3, 9, 8, False, None, None),
-        ("P", "modis", 2008, 3, 12, 9, False, None, None)]
+        (1, "modis", 2001, 3, 10, None, False, None, None),
+        (1, "modis", 2002, 3, 15, 10, True, 5, 50.0),
+        (1, "modis", 2003, 3, 0, 15, True, -15, -100.0),
+        (1, "modis", 2004, 3, 5, 0, True, 5, None),
+        (1, "modis", 2006, 3, 8, None, False, None, None),
+        (1, "modis", 2007, 3, 9, 8, False, None, None),
+        (1, "modis", 2008, 3, 12, 9, False, None, None)]
     assert out["valid_pair"].dtype == bool
 
 
@@ -226,17 +226,17 @@ def test_his08_unknown_days_and_months_do_not_mix():
     rows = [{"year": 2001, "month": 5, "cell_days": 10, "n_unknown_days": 1},
             {"year": 2002, "month": 5, "cell_days": 14},
             {"year": 2002, "month": 6, "cell_days": 99},                      # mes 6 de 2001 ausente
-            {"year": 2002, "month": 5, "cell_days": 7, "country": "Q"},       # outro pais sem 2001
+            {"year": 2002, "month": 5, "cell_days": 7, "cell": 2},       # outro pais sem 2001
             {"year": 2002, "month": 5, "cell_days": 7, "series": "viirs"}]    # outra serie sem 2001
     df = monthly_df(rows)
     out = his08_yoy(df)
     assert out["valid_pair"].tolist() == [False] * 5
-    assert out["prev_cell_days"].isna().sum() == 4          # so (P, modis, 2002, 5) tem prev (10)
+    assert out["prev_cell_days"].isna().sum() == 4          # so (1, modis, 2002, 5) tem prev (10)
     out = his08_yoy(df, max_unknown_days=1)                  # limite inclusivo
-    r = {(x["country"], x["series"], x["year"], x["month"]): x for x in recs(out)}
-    assert r[("P", "modis", 2002, 5)]["valid_pair"]
-    assert (r[("P", "modis", 2002, 5)]["diff_abs"], r[("P", "modis", 2002, 5)]["yoy_pct"]) == (4, 40.0)
-    assert r[("P", "modis", 2002, 6)]["prev_cell_days"] is None
+    r = {(x["cell"], x["series"], x["year"], x["month"]): x for x in recs(out)}
+    assert r[(1, "modis", 2002, 5)]["valid_pair"]
+    assert (r[(1, "modis", 2002, 5)]["diff_abs"], r[(1, "modis", 2002, 5)]["yoy_pct"]) == (4, 40.0)
+    assert r[(1, "modis", 2002, 6)]["prev_cell_days"] is None
     assert sum(1 for x in r.values() if x["valid_pair"]) == 1
 
 
@@ -248,7 +248,7 @@ def test_his08_empty_and_missing_columns():
 
 
 def test_his08_order_invariance():
-    df = monthly_df(THREE_YEARS + [{"year": 2002, "month": 3, "cell_days": 4, "country": "Q"}])
+    df = monthly_df(THREE_YEARS + [{"year": 2002, "month": 3, "cell_days": 4, "cell": 2}])
     ref = his08_yoy(df)
     shuffled = df.sample(frac=1, random_state=5).reset_index(drop=True)
     pd.testing.assert_frame_equal(his08_yoy(shuffled), ref)
@@ -293,8 +293,8 @@ def test_his10_hand_example_three_years():
     assert list(out.columns) == TREND_COLS
     assert len(out) == 1
     r = recs(out)[0]
-    assert (r["country"], r["series"], r["n_years"], r["first_year"], r["last_year"]) == (
-        "P", "modis", 3, 2000, 2003)
+    assert (r["cell"], r["series"], r["n_years"], r["first_year"], r["last_year"]) == (
+        1, "modis", 3, 2000, 2003)
     assert r["slope_per_year"] == 2.0 and r["intercept"] == -3999.0
     assert r["slope_p025"] == pytest.approx(1.05) and r["slope_p975"] == pytest.approx(3.9)
 
@@ -353,12 +353,12 @@ def test_his10_only_valid_years_are_used():
 
 
 def test_his10_no_valid_years_and_multiple_groups():
-    rows = annual_series(range(1, 9), country="Q", series="viirs")
-    rows += [{"country": "A", "series": "modis", "year": 2005, "cell_days": 3, "partial": True}]
-    rows += annual_series([1, 4, 9, 16, 25, 36, 49, 64], country="Q", series="modis")
+    rows = annual_series(range(1, 9), cell=2, series="viirs")
+    rows += [{"cell": 1, "series": "modis", "year": 2005, "cell_days": 3, "partial": True}]
+    rows += annual_series([1, 4, 9, 16, 25, 36, 49, 64], cell=2, series="modis")
     out = his10_trend(annual_df(rows))
-    assert [(r["country"], r["series"], r["n_years"]) for r in recs(out)] == [
-        ("A", "modis", 0), ("Q", "modis", 8), ("Q", "viirs", 8)]
+    assert [(r["cell"], r["series"], r["n_years"]) for r in recs(out)] == [
+        (1, "modis", 0), (2, "modis", 8), (2, "viirs", 8)]
     a = recs(out)[0]
     assert all(a[c] is None for c in TREND_COLS[3:])
     assert recs(out)[2]["slope_per_year"] == 1.0
@@ -376,7 +376,7 @@ def test_his10_empty_and_missing_columns():
 
 def test_his10_order_invariance():
     df = annual_df(annual_series([0, 3, 4, 6, 9, 10, 12, 15])
-                   + annual_series([5, 1, 7, 2, 8, 3, 9, 4], country="Q"))
+                   + annual_series([5, 1, 7, 2, 8, 3, 9, 4], cell=2))
     ref = his10_trend(df)
     pd.testing.assert_frame_equal(his10_trend(df.sample(frac=1, random_state=11).reset_index(drop=True)), ref)
 

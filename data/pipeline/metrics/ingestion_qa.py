@@ -5,6 +5,7 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
+from .common import GRID_DEG
 from .detections import KEYS, _finish, _prepare
 
 
@@ -18,25 +19,26 @@ def _is_calendar_date(value: str) -> bool:
 
 
 def qa01_schema_validation(df: pd.DataFrame) -> pd.DataFrame:
-    """Count schema failures by country and instrument across all input years.
+    """Count schema failures by instrument (global, not per cell) across all input years.
 
     A row can fail multiple rules but contributes once to ``n_invalid``.
-    Missing instruments are retained as ``unknown``. Missing countries are
-    retained as null group keys. The calling notebook supplies the file year.
-    This validates the coerced records, not records discarded during ingestion.
+    Missing instruments are retained as ``unknown``. The calling notebook supplies the file
+    year. Rows with invalid coordinates are counted here (rule ``coords``), which is why
+    the cell metrics can exclude them. This validates the coerced records, not records
+    discarded during ingestion.
     """
     required = [
-        "country", "instrument", "latitude", "longitude", "acq_date",
+        "instrument", "latitude", "longitude", "acq_date",
         "acq_time", "satellite", "daynight", "confidence_raw",
     ]
     rules = ["coords", "date", "time", "instrument", "satellite", "daynight", "confidence"]
-    keys = ["country", "instrument"]
+    keys = ["instrument"]
     counts = ["n_rows", "n_valid", "n_invalid"]
     failures = [f"n_fail_{rule}" for rule in rules]
     columns = keys + counts + ["pct_valid"] + failures
     if df.empty:
         dtypes = {column: "int64" for column in counts + failures}
-        dtypes.update(country="object", instrument="object", pct_valid="float64")
+        dtypes.update(instrument="object", pct_valid="float64")
         return pd.DataFrame({column: pd.Series(dtype=dtypes[column]) for column in columns})
 
     missing = sorted(set(required) - set(df.columns))
@@ -76,10 +78,15 @@ def qa01_schema_validation(df: pd.DataFrame) -> pd.DataFrame:
     return result[columns].sort_values(keys).reset_index(drop=True)
 
 
-def add03_duplicates(df: pd.DataFrame) -> pd.DataFrame:
-    """Count repeated acquisition-coordinate tuples and (0, 0) detections."""
+def add03_duplicates(df: pd.DataFrame, grid_deg: float = GRID_DEG) -> pd.DataFrame:
+    """Count repeated acquisition-coordinate tuples and (0, 0) detections per cell group.
+
+    The key has ``cell`` and no country, so a detection repeated in the files of two
+    countries (same cell, date, time and coordinates) is already seen as a duplicate.
+    Rows with invalid coordinates or dates are excluded (see ``count_invalid_coords``).
+    """
     fields = ["latitude", "longitude", "acq_time"]
-    source = _prepare(df, fields)
+    source = _prepare(df, fields, grid_deg)
     source["n_null_island"] = (source.latitude.eq(0) & source.longitude.eq(0)).fillna(False).astype(int)
     source["n_dup_rows"] = source.duplicated(KEYS + fields + ["acq_date"]).astype(int)
     source["n_rows"] = 1
@@ -87,30 +94,3 @@ def add03_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     result = source.groupby(KEYS, observed=True, dropna=False)[counts].sum().reset_index()
     result["pct_dup"] = 100.0 * result.n_dup_rows / result.n_rows
     return _finish(result, KEYS + ["n_rows", "n_dup_rows", "pct_dup", "n_null_island"])
-
-
-def add04_zero_detection_countries(counts: pd.DataFrame) -> pd.DataFrame:
-    """Find missing country-years within each instrument's observed year range.
-
-    A missing combination can also represent a missing source file. This metric
-    cannot establish observation coverage from processed detections alone.
-    """
-    columns = ["instrument", "year", "country", "n_years_with_data"]
-    if counts.empty:
-        return _finish(pd.DataFrame(columns=columns), columns)
-    missing = sorted(set(["country", "instrument", "year", "n_rows"]) - set(counts.columns))
-    if missing:
-        raise ValueError(f"Missing required columns: {', '.join(missing)}")
-    totals = counts.groupby(["instrument", "year", "country"], observed=True, dropna=False).n_rows.sum().reset_index()
-    results = []
-    for instrument, group in totals.groupby("instrument", observed=True, dropna=False):
-        years = range(int(group.year.min()), int(group.year.max()) + 1)
-        expected = pd.MultiIndex.from_product([years, group.country.unique()], names=["year", "country"])
-        grid = group.set_index(["year", "country"]).n_rows.reindex(expected, fill_value=0)
-        absent = grid.loc[grid.eq(0)].reset_index().drop(columns="n_rows")
-        active = group.loc[group.n_rows.gt(0)].groupby("country", observed=True, dropna=False).year.nunique()
-        absent["instrument"] = instrument
-        absent["n_years_with_data"] = absent.country.map(active).fillna(0).astype("int64")
-        results.append(absent)
-    result = pd.concat(results, ignore_index=True)
-    return result[columns].sort_values(["instrument", "year", "country"]).reset_index(drop=True)

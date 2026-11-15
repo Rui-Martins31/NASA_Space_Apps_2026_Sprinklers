@@ -36,9 +36,9 @@ def test_fixed_worked_example():
     assert row["ref_p10"] == 15.0 and row["ref_p90"] == 55.0         # interpolacao linear
 
 
-def test_fixed_has_twelve_months_per_country_series_with_empty_months_na():
+def test_fixed_has_twelve_months_per_cell_series_with_empty_months_na():
     out = reference_fixed(monthly_df(series_rows(SIX)))
-    assert list(out.columns) == ["country", "series", "month", "n_ref_years", "ref_mean",
+    assert list(out.columns) == ["cell", "series", "month", "n_ref_years", "ref_mean",
                                  "ref_std", "ref_median", "ref_p10", "ref_p90"]
     assert out["month"].tolist() == list(range(1, 13))
     jan = recs(out)[0]
@@ -73,19 +73,19 @@ def test_fixed_reference_window_is_inclusive():
 
 
 def test_fixed_groups_are_independent():
-    rows = (series_rows(SIX) + series_rows([1, 1, 1, 1, 1], country="Q") +
+    rows = (series_rows(SIX) + series_rows([1, 1, 1, 1, 1], cell=2) +
             series_rows([100, 200, 300, 400, 500], series="viirs"))
     out = reference_fixed(monthly_df(rows))
-    pick = {(r["country"], r["series"]): r for r in recs(out) if r["month"] == 3}
-    assert pick[("P", "modis")]["ref_mean"] == 35.0
-    assert pick[("Q", "modis")]["ref_mean"] == 1.0 and pick[("Q", "modis")]["ref_std"] == 0.0
-    assert pick[("P", "viirs")]["ref_mean"] == 300.0
+    pick = {(r["cell"], r["series"]): r for r in recs(out) if r["month"] == 3}
+    assert pick[(1, "modis")]["ref_mean"] == 35.0
+    assert pick[(2, "modis")]["ref_mean"] == 1.0 and pick[(2, "modis")]["ref_std"] == 0.0
+    assert pick[(1, "viirs")]["ref_mean"] == 300.0
 
 
 # -------------------------------------------------------------------- reference_loo
 def test_loo_worked_example():
     out = reference_loo(monthly_df(series_rows(SIX)))
-    assert list(out.columns) == ["country", "series", "year", "month", "cell_days", "valid_month",
+    assert list(out.columns) == ["cell", "series", "year", "month", "cell_days", "valid_month",
                                  "n_ref_years", "ref_mean", "ref_std", "n_below", "n_equal"]
     got = recs(out)
     assert [r["n_ref_years"] for r in got] == [5] * 6
@@ -136,17 +136,17 @@ def test_loo_reference_window_rows_outside_window_use_whole_pool():
 
 
 def test_loo_months_and_groups_are_independent():
-    rows = series_rows(SIX) + series_rows([5, 5, 5, 5, 5, 5], month=4) + series_rows(SIX, country="Q")
+    rows = series_rows(SIX) + series_rows([5, 5, 5, 5, 5, 5], month=4) + series_rows(SIX, cell=2)
     got = recs(reference_loo(monthly_df(rows)))
     assert [r["ref_mean"] for r in got if r["month"] == 4] == [5.0] * 6
-    assert [r["ref_mean"] for r in got if r["country"] == "Q"] == [40.0, 38.0, 36.0, 34.0, 32.0, 30.0]
+    assert [r["ref_mean"] for r in got if r["cell"] == 2] == [40.0, 38.0, 36.0, 34.0, 32.0, 30.0]
 
 
 # --------------------------------------------------- vazio, esquema, ordem, oraculo
 def test_empty_and_missing_columns():
     empty = monthly_df([])
     assert len(reference_fixed(empty)) == 0 and len(reference_loo(empty)) == 0
-    assert list(reference_loo(empty).columns)[:3] == ["country", "series", "year"]
+    assert list(reference_loo(empty).columns)[:3] == ["cell", "series", "year"]
     with pytest.raises(ValueError, match="partial"):
         reference_loo(monthly_df(series_rows(SIX)).drop(columns=["partial"]))
     with pytest.raises(ValueError, match="n_unknown_days"):
@@ -154,7 +154,7 @@ def test_empty_and_missing_columns():
 
 
 def test_order_of_rows_does_not_matter():
-    df = monthly_df(series_rows(SIX) + series_rows(SIX, country="Q"))
+    df = monthly_df(series_rows(SIX) + series_rows(SIX, cell=2))
     shuffled = df.sample(frac=1.0, random_state=9).reset_index(drop=True)
     for fn in (reference_loo, reference_fixed):
         pd.testing.assert_frame_equal(fn(df), fn(shuffled), check_dtype=False)
@@ -170,19 +170,19 @@ def _linear_percentile(sorted_vals, p):
 def test_matches_pure_python_oracle_on_random_world():
     rng = random.Random(77)
     rows = []
-    for country in ("P", "Q"):
+    for cell in (1, 2):
         for series in ("modis", "viirs"):
             for month in (1, 2, 3):
                 for year in range(2001, 2021):
-                    rows.append({"country": country, "series": series, "month": month, "year": year,
+                    rows.append({"cell": cell, "series": series, "month": month, "year": year,
                                  "cell_days": rng.randint(0, 200),
                                  "partial": rng.random() < 0.1, "n_unknown_days": rng.choice([0, 0, 0, 2])})
     df = monthly_df(rows)
-    valid = {(r["country"], r["series"], r["month"], r["year"]): r["cell_days"]
+    valid = {(r["cell"], r["series"], r["month"], r["year"]): r["cell_days"]
              for r in rows if not r["partial"] and r["n_unknown_days"] == 0}
     # fixa
     for r in recs(reference_fixed(df)):
-        vals = sorted(v for (c, s, m, y), v in valid.items() if (c, s, m) == (r["country"], r["series"], r["month"]))
+        vals = sorted(v for (c, s, m, y), v in valid.items() if (c, s, m) == (r["cell"], r["series"], r["month"]))
         assert r["n_ref_years"] == len(vals)
         if len(vals) >= 5:
             assert r["ref_mean"] == pytest.approx(statistics.mean(vals))
@@ -194,7 +194,7 @@ def test_matches_pure_python_oracle_on_random_world():
             assert r["ref_mean"] is None
     # leave-one-out
     for r in recs(reference_loo(df)):
-        key = (r["country"], r["series"], r["month"])
+        key = (r["cell"], r["series"], r["month"])
         others = [v for (c, s, m, y), v in valid.items() if (c, s, m) == key and y != r["year"]]
         assert r["n_ref_years"] == len(others)
         if len(others) >= 5:
@@ -226,11 +226,11 @@ def test_require_no_na_names_the_columns():
 
 def test_category_dtype_keys_give_same_result_and_no_future_warning():
     import warnings
-    df = monthly_df(series_rows(SIX) + series_rows(SIX, country="Q"))
-    cat = df.astype({"country": "category", "series": "category"})
+    df = monthly_df(series_rows(SIX) + series_rows(SIX, cell=2))
+    cat = df.astype({"series": "category"})
     with warnings.catch_warnings():
         warnings.simplefilter("error")                                        # FutureWarning vira erro
         loo, fixed = reference_loo(cat), reference_fixed(cat)
-    pd.testing.assert_frame_equal(loo.astype({"country": "object", "series": "object"}),
-                                  reference_loo(df).astype({"country": "object", "series": "object"}), check_dtype=False)
+    pd.testing.assert_frame_equal(loo.astype({"series": "object"}),
+                                  reference_loo(df).astype({"series": "object"}), check_dtype=False)
     assert len(fixed) == 24

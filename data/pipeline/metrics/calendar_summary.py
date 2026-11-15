@@ -1,9 +1,16 @@
-"""Pure L3 calendar summaries calculated from the L1 aggregate tables."""
+"""Pure L3 calendar summaries calculated from the L1 aggregate tables.
+
+The region key is `cell` (int64, `common.cell_key`); `common.GLOBAL_CELL` marks global rows.
+Performance: no per-group Python loops over cells (the seasonal profile uses grouped sums and counts,
+the monthly skeleton is built with repeat/tile instead of a cross join).
+"""
+
+import numpy as np
 
 import pandas as pd
 
 
-GROUP = ["country", "series"]
+GROUP = ["cell", "series"]
 MONTHLY = GROUP + ["year", "month", "cell_days", "partial", "n_unknown_days"]
 ANNUAL = GROUP + ["year", "cell_days", "partial", "n_unknown_days"]
 DAILY = GROUP + ["date", "n_cells"]
@@ -17,7 +24,7 @@ def _output(frame, columns, nullable=()):
         "year", "month", "start_year", "start_month", "end_year", "end_month",
         "first_year", "last_year", "cell_days", "n_cells", "active_days",
         "n_months", "n_partial_months", "n_unknown_days", "n_valid_months",
-        "n_valid_years", "n_years", "n_days_in_month", "n_ref_years",
+        "n_valid_years", "n_years", "n_days_in_month", "n_ref_years", "cell",
     }
     floats = {"mean_cell_days", "share_pct", "ref_mean", "anomaly_abs", "anomaly_pct"}
     for column in columns:
@@ -29,7 +36,7 @@ def _output(frame, columns, nullable=()):
             result[column] = result[column].astype(bool)
         elif column == "date":
             result[column] = pd.to_datetime(result[column]).dt.as_unit("ns")
-        elif column in {"country", "series", "years_included"}:
+        elif column in {"series", "years_included"}:
             result[column] = result[column].astype("object")
     keys = [column for column in GROUP + ["year", "month"] if column in columns]
     return result.sort_values(keys).reset_index(drop=True)
@@ -142,14 +149,17 @@ def cal08_annual_mean(annual: pd.DataFrame, ref_start=None, ref_end=None,
 
 def cal09_monthly_mean(monthly: pd.DataFrame, ref_start=None, ref_end=None,
                        min_ref_years=5, max_unknown_days=0) -> pd.DataFrame:
-    """Build twelve fixed-reference means per existing country and series."""
+    """Build twelve fixed-reference means per existing cell and series."""
     source = _input(monthly, MONTHLY)
     if source.empty:
         return _output(pd.DataFrame(), REFERENCE)
-    skeleton = source[GROUP].drop_duplicates().merge(pd.DataFrame({"month": range(1, 13)}), how="cross")
+    pairs = source[GROUP].drop_duplicates()
+    skeleton = pairs.loc[pairs.index.repeat(12)].reset_index(drop=True)      # 12 meses por par, sem cross join
+    skeleton["month"] = np.tile(np.arange(1, 13), len(pairs))
     pool = _reference_pool(source, ref_start, ref_end, max_unknown_days)
+    # chaves (cell, series, year, month) unicas (ver _input): contar anos = contar linhas
     summary = pool.groupby(GROUP + ["month"], observed=True, dropna=False).agg(
-        n_years=("year", "nunique"), mean_cell_days=("cell_days", "mean"),
+        n_years=("year", "size"), mean_cell_days=("cell_days", "mean"),
     ).reset_index()
     result = skeleton.merge(summary, how="left", on=GROUP + ["month"])
     result["n_years"] = result.n_years.fillna(0)
@@ -196,7 +206,8 @@ def cal12_seasonal_profile(cal09: pd.DataFrame) -> pd.DataFrame:
     if source.empty:
         return _output(pd.DataFrame(), columns)
     groups = source.groupby(GROUP, observed=True, dropna=False)
-    totals = groups.mean_cell_days.transform(lambda values: values.sum(min_count=12))
+    # soma dos 12 meses so se os 12 existirem e nenhum for NA (antes: transform(lambda sum(min_count=12)))
+    totals = groups.mean_cell_days.transform("sum").where(groups.mean_cell_days.transform("count").ge(12))
     complete = groups.month.transform("nunique").eq(12)
     source["share_pct"] = 100.0 * source.mean_cell_days / totals.where(complete & totals.ne(0))
     peaks = source.loc[source.mean_cell_days.notna()].sort_values(

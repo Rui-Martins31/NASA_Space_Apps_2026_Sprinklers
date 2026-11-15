@@ -15,16 +15,16 @@ from .history_pool import (
     MAX_UNKNOWN_DAYS, MIN_REF_YEARS, reference_fixed, reference_loo, valid_mask,
 )
 
-HIS01_COLUMNS = ["country", "series", "month", "n_ref_years", "median_cell_days"]
-HIS02_COLUMNS = ["country", "series", "month", "n_ref_years", "p10", "p90"]
-HIS05_COLUMNS = ["country", "series", "year", "month", "cell_days", "valid_month",
+HIS01_COLUMNS = ["cell", "series", "month", "n_ref_years", "median_cell_days"]
+HIS02_COLUMNS = ["cell", "series", "month", "n_ref_years", "p10", "p90"]
+HIS05_COLUMNS = ["cell", "series", "year", "month", "cell_days", "valid_month",
                  "n_ref_years", "ref_mean", "ref_std", "zscore"]
-HIS06_COLUMNS = ["country", "series", "year", "month", "cell_days", "valid_month",
+HIS06_COLUMNS = ["cell", "series", "year", "month", "cell_days", "valid_month",
                  "n_ref_years", "percentile"]
-HIS09_COLUMNS = ["country", "series", "year", "n_months_evaluated", "n_months_above",
+HIS09_COLUMNS = ["cell", "series", "year", "n_months_evaluated", "n_months_above",
                  "months_above"]
-_SORT_FIXED = ["country", "series", "month"]
-_SORT_LOO = ["country", "series", "year", "month"]
+_SORT_FIXED = ["cell", "series", "month"]
+_SORT_LOO = ["cell", "series", "year", "month"]
 
 
 def _finish(table: pd.DataFrame, columns, sort_cols) -> pd.DataFrame:
@@ -35,7 +35,7 @@ def _finish(table: pd.DataFrame, columns, sort_cols) -> pd.DataFrame:
 def his01_hist_median(monthly: pd.DataFrame, ref_start=None, ref_end=None,
                       min_ref_years: int = MIN_REF_YEARS,
                       max_unknown_days: int = MAX_UNKNOWN_DAYS) -> pd.DataFrame:
-    """HIS-01: mediana historica de cell_days por (country, series, month), referencia fixa.
+    """HIS-01: mediana historica de cell_days por (cell, series, month), referencia fixa.
     NA se n_ref_years < min_ref_years."""
     ref = reference_fixed(monthly, ref_start, ref_end, min_ref_years, max_unknown_days)
     ref = ref.rename(columns={"ref_median": "median_cell_days"})
@@ -45,7 +45,7 @@ def his01_hist_median(monthly: pd.DataFrame, ref_start=None, ref_end=None,
 def his02_hist_band(monthly: pd.DataFrame, ref_start=None, ref_end=None,
                     min_ref_years: int = MIN_REF_YEARS,
                     max_unknown_days: int = MAX_UNKNOWN_DAYS) -> pd.DataFrame:
-    """HIS-02: faixa historica (p10, p90 lineares) por (country, series, month), referencia fixa.
+    """HIS-02: faixa historica (p10, p90 lineares) por (cell, series, month), referencia fixa.
     NA se n_ref_years < min_ref_years."""
     ref = reference_fixed(monthly, ref_start, ref_end, min_ref_years, max_unknown_days)
     ref = ref.rename(columns={"ref_p10": "p10", "ref_p90": "p90"})
@@ -88,25 +88,29 @@ def his06_percentile(monthly: pd.DataFrame, ref_start=None, ref_end=None,
 def his09_months_above(monthly: pd.DataFrame, ref_start=None, ref_end=None,
                        min_ref_years: int = MIN_REF_YEARS,
                        max_unknown_days: int = MAX_UNKNOWN_DAYS) -> pd.DataFrame:
-    """HIS-09: por (country, series, year), meses validos com cell_days > p90 (ESTRITO).
+    """HIS-09: por (cell, series, year), meses validos com cell_days > p90 (ESTRITO).
     Referencia FIXA (HIS-02), mesmo que o ano avaliado esteja dentro da janela.
     n_months_evaluated = meses validos com p90 definido; months_above = "3,4" (vazio se nenhum)."""
     band = his02_hist_band(monthly, ref_start, ref_end, min_ref_years, max_unknown_days)
     if monthly.empty:
         return pd.DataFrame({c: pd.Series(dtype="object") for c in HIS09_COLUMNS})
-    m = monthly[["country", "series", "year", "month", "cell_days"]].assign(
+    m = monthly[["cell", "series", "year", "month", "cell_days"]].assign(
         valid_month=valid_mask(monthly, max_unknown_days).to_numpy()).merge(
-        band[["country", "series", "month", "p90"]], on=["country", "series", "month"], how="left")
+        band[["cell", "series", "month", "p90"]], on=["cell", "series", "month"], how="left")
     evaluated = m["valid_month"].astype(bool) & m["p90"].notna()
     above = evaluated & (m["cell_days"].astype("float64") > m["p90"])
-    rows = []
-    for (country, series, year), idx in m.groupby(["country", "series", "year"], sort=False, observed=True).groups.items():
-        ev = evaluated.loc[idx]
-        ab = above.loc[idx]
-        months = sorted(int(x) for x in m.loc[idx][ab.to_numpy()]["month"])
-        rows.append({"country": country, "series": series, "year": year,
-                     "n_months_evaluated": int(ev.sum()), "n_months_above": int(ab.sum()),
-                     "months_above": ",".join(str(x) for x in months)})
-    out = pd.DataFrame(rows, columns=HIS09_COLUMNS)
+    keys = ["cell", "series", "year"]
+    # um grupo por (cell, series, year): contagens por soma; "3,4" so se constroi para os grupos com
+    # algum mes acima (join dos meses ja ordenados), sem ciclo por grupo sobre todas as linhas
+    flags = m[keys].assign(_ev=evaluated.to_numpy(), _ab=above.to_numpy())
+    out = flags.groupby(keys, sort=False, observed=True).agg(
+        n_months_evaluated=("_ev", "sum"), n_months_above=("_ab", "sum")).reset_index()
+    hits = m.loc[above.to_numpy(), keys + ["month"]].sort_values(keys + ["month"])
+    text = (hits.assign(month=hits["month"].astype("int64").astype(str)).groupby(keys, sort=False, observed=True)["month"]
+            .agg(",".join).rename("months_above").reset_index())
+    out = out.merge(text, on=keys, how="left")
+    out["months_above"] = out["months_above"].fillna("")
     out["year"] = out["year"].astype("int64")
-    return _finish(out, HIS09_COLUMNS, ["country", "series", "year"])
+    out["n_months_evaluated"] = out["n_months_evaluated"].astype("int64")
+    out["n_months_above"] = out["n_months_above"].astype("int64")
+    return _finish(out, HIS09_COLUMNS, keys)

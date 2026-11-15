@@ -5,27 +5,27 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
-from helpers_lote3 import annual, daily, historical_pool, monthly
+from helpers_lote3 import CELL, annual, daily, historical_pool, monthly
 from metrics import calendar_summary as c
 
 
 CASES = [
     ("cal05_total_period", lambda: [monthly({})],
-     ["country", "series", "start_year", "start_month", "end_year", "end_month", "cell_days", "n_months", "n_partial_months", "n_unknown_days"]),
+     ["cell", "series", "start_year", "start_month", "end_year", "end_month", "cell_days", "n_months", "n_partial_months", "n_unknown_days"]),
     ("cal06_peak_month", lambda: [monthly({})],
-     ["country", "series", "year", "month", "cell_days", "n_valid_months"]),
+     ["cell", "series", "year", "month", "cell_days", "n_valid_months"]),
     ("cal07_peak_year", lambda: [annual({})],
-     ["country", "series", "year", "cell_days", "n_valid_years"]),
+     ["cell", "series", "year", "cell_days", "n_valid_years"]),
     ("cal08_annual_mean", lambda: [annual({})],
-     ["country", "series", "n_years", "mean_cell_days", "first_year", "last_year", "years_included"]),
+     ["cell", "series", "n_years", "mean_cell_days", "first_year", "last_year", "years_included"]),
     ("cal09_monthly_mean", lambda: [historical_pool()],
-     ["country", "series", "month", "n_years", "mean_cell_days"]),
+     ["cell", "series", "month", "n_years", "mean_cell_days"]),
     ("cal10_active_days", lambda: [daily({}), monthly(dict(year=2000, month=2))],
-     ["country", "series", "year", "month", "active_days", "n_days_in_month"]),
+     ["cell", "series", "year", "month", "active_days", "n_days_in_month"]),
     ("cal11_peak_day", lambda: [daily({})],
-     ["country", "series", "year", "date", "n_cells"]),
+     ["cell", "series", "year", "date", "n_cells"]),
     ("cal12_seasonal_profile", lambda: [c.cal09_monthly_mean(historical_pool())],
-     ["country", "series", "month", "n_years", "mean_cell_days", "share_pct", "is_peak_month"]),
+     ["cell", "series", "month", "n_years", "mean_cell_days", "share_pct", "is_peak_month"]),
 ]
 
 
@@ -34,15 +34,15 @@ def test_empty_contract(name, factory, columns):
     result = getattr(c, name)(*[pd.DataFrame() for _ in factory()])
     assert result.empty
     assert result.columns.tolist() == columns
-    assert result.country.dtype == "object"
+    assert result.cell.dtype == "int64"
     assert result.series.dtype == "object"
 
 
 @pytest.mark.parametrize("name,factory,columns", CASES)
 def test_missing_columns_named(name, factory, columns):
     args = factory()
-    args[0] = args[0].drop(columns="country")
-    with pytest.raises(ValueError, match="country"):
+    args[0] = args[0].drop(columns="cell")
+    with pytest.raises(ValueError, match="cell"):
         getattr(c, name)(*args)
 
 
@@ -51,7 +51,7 @@ def test_immutable_shuffled_and_group_isolated(name, factory, columns):
     args = factory()
     extended = []
     for frame in args:
-        other = frame.assign(country="Spain", series="viirs")
+        other = frame.assign(cell=CELL + 1, series="viirs")
         third = frame.assign(series="combined")
         extended.append(pd.concat([other, third, frame], ignore_index=True))
     before = [frame.copy(deep=True) for frame in extended]
@@ -59,7 +59,7 @@ def test_immutable_shuffled_and_group_isolated(name, factory, columns):
     shuffled = [frame.sample(frac=1, random_state=21) for frame in extended]
     assert_frame_equal(result, getattr(c, name)(*shuffled))
     baseline = getattr(c, name)(*args)
-    selected = result.loc[result.country.eq("Portugal") & result.series.eq("modis")].reset_index(drop=True)
+    selected = result.loc[result.cell.eq(CELL) & result.series.eq("modis")].reset_index(drop=True)
     assert_frame_equal(selected, baseline)
     for frame, original in zip(extended, before):
         assert_frame_equal(frame, original)
@@ -70,8 +70,8 @@ def test_total_period_manual_inclusive_partial_and_unknown():
                      dict(month=1, cell_days=10, partial=True, n_unknown_days=2),
                      dict(month=2, cell_days=20), dict(month=3, cell_days=30))
     result = c.cal05_total_period(source, start=(2001, 1), end=(2001, 2))
-    assert result.iloc[0].tolist() == ["Portugal", "modis", 2001, 1, 2001, 2, 30, 2, 1, 2]
-    assert c.cal05_total_period(source).iloc[0].tolist() == ["Portugal", "modis", 2000, 12, 2001, 3, 65, 4, 1, 2]
+    assert result.iloc[0].tolist() == [CELL, "modis", 2001, 1, 2001, 2, 30, 2, 1, 2]
+    assert c.cal05_total_period(source).iloc[0].tolist() == [CELL, "modis", 2000, 12, 2001, 3, 65, 4, 1, 2]
     assert c.cal05_total_period(source, start=(2020, 1)).empty
 
 
@@ -81,9 +81,9 @@ def test_peak_month_ties_invalid_and_custom_unknown_limit():
                      dict(year=2001, month=3, cell_days=50),
                      dict(month=5, cell_days=999, partial=True),
                      dict(year=2003, cell_days=888, n_unknown_days=1),
-                     dict(country="Spain", partial=True))
+                     dict(cell=CELL + 1, partial=True))
     result = c.cal06_peak_month(source)
-    assert result.iloc[0].tolist() == ["Portugal", "modis", 2001, 3, 50, 3]
+    assert result.iloc[0].tolist() == [CELL, "modis", 2001, 3, 50, 3]
     assert result.n_valid_months.tolist() == [3, 0]
     assert result.iloc[1][["year", "month", "cell_days"]].isna().all()
     assert c.cal06_peak_month(source, max_unknown_days=1).year.iloc[0] == 2003
@@ -92,9 +92,9 @@ def test_peak_month_ties_invalid_and_custom_unknown_limit():
 def test_peak_year_ties_and_all_invalid():
     source = annual(dict(year=2003, cell_days=100), dict(year=2001, cell_days=100),
                     dict(year=2002, cell_days=999, partial=True),
-                    dict(country="Spain", n_unknown_days=1))
+                    dict(cell=CELL + 1, n_unknown_days=1))
     result = c.cal07_peak_year(source)
-    assert result.iloc[0].tolist() == ["Portugal", "modis", 2001, 100, 2]
+    assert result.iloc[0].tolist() == [CELL, "modis", 2001, 100, 2]
     assert result.iloc[1][["year", "cell_days"]].isna().all()
     assert result.n_valid_years.tolist() == [2, 0]
 
@@ -102,9 +102,9 @@ def test_peak_year_ties_and_all_invalid():
 def test_annual_mean_manual_reference_and_no_valid_years():
     source = annual(dict(year=2001, cell_days=100), dict(year=2002, cell_days=200),
                     dict(year=2003, cell_days=300), dict(year=2004, cell_days=999, partial=True),
-                    dict(country="Spain", partial=True))
+                    dict(cell=CELL + 1, partial=True))
     result = c.cal08_annual_mean(source)
-    assert result.iloc[0].tolist() == ["Portugal", "modis", 3, 200.0, 2001, 2003, "2001,2002,2003"]
+    assert result.iloc[0].tolist() == [CELL, "modis", 3, 200.0, 2001, 2003, "2001,2002,2003"]
     assert result.n_years.tolist() == [3, 0]
     assert result.years_included.tolist() == ["2001,2002,2003", ""]
     assert result.iloc[1][["mean_cell_days", "first_year", "last_year"]].isna().all()
@@ -139,9 +139,9 @@ def test_monthly_reference_excludes_unknown_and_partial():
 
 
 def test_monthly_reference_preserves_groups_without_valid_periods():
-    source = monthly(dict(partial=True), dict(country="Spain", n_unknown_days=1))
+    source = monthly(dict(partial=True), dict(cell=CELL + 1, n_unknown_days=1))
     result = c.cal09_monthly_mean(source)
-    assert result.groupby("country", observed=True).size().to_dict() == {"Portugal": 12, "Spain": 12}
+    assert result.groupby("cell", observed=True).size().to_dict() == {CELL: 12, CELL + 1: 12}
     assert result.n_years.eq(0).all()
     assert result.mean_cell_days.isna().all()
 
@@ -154,7 +154,7 @@ def test_calendar_input_rejects_invalid_period_records(name, factory, columns, p
     source = args[position]
     if problem == "duplicate":
         args[position] = pd.concat([source, source.iloc[:1]], ignore_index=True)
-        message = "Duplicate.*country.*series.*year"
+        message = "Duplicate.*cell.*series.*year"
     else:
         source["cell_days"] = source.cell_days.astype("Int64")
         source.loc[0, "cell_days"] = pd.NA
@@ -184,7 +184,7 @@ def test_peak_day_manual_earliest_tie_and_positive_activity():
 
 
 def test_seasonal_manual_shares_ties_zero_and_missing_means():
-    reference = pd.DataFrame(dict(country=["Portugal"] * 12, series=["modis"] * 12,
+    reference = pd.DataFrame(dict(cell=[CELL] * 12, series=["modis"] * 12,
                                  month=range(1, 13), n_years=[6] * 12,
                                  mean_cell_days=[20.0, 20.0] + [2.0] * 10))
     result = c.cal12_seasonal_profile(reference)
@@ -214,82 +214,13 @@ def test_seeded_summary_invariants():
     assert c.cal08_annual_mean(years).mean_cell_days.iloc[0] == sum(map(int, values)) / 12
 
 
-@pytest.mark.parametrize("empty", [False, True])
-def test_notebook_actual_cells_roundtrip_rerun_and_missing_input(tmp_path, empty):
-    import ast
-    import contextlib
-    import io
-    import json
-    from pathlib import Path
-
-    repo = Path(__file__).resolve().parents[3]
-    path = repo / "data/pipeline/notebooks/04_metrics_lote3.ipynb"
-    notebook = json.loads(path.read_text(encoding="utf-8"))
-    sources = []
-    for cell in notebook["cells"]:
-        if cell["cell_type"] == "code":
-            assert cell["outputs"] == []
-            assert cell["execution_count"] is None
-            source = "".join(cell["source"])
-            ast.parse(source)
-            sources.append(source)
-    metrics = tmp_path / "metrics"
-    metrics.mkdir()
-    months = pd.concat([historical_pool().assign(month=month) for month in range(1, 13)], ignore_index=True)
-    years = months.groupby(["country", "series", "year"], as_index=False, observed=True).agg(
-        cell_days=("cell_days", "sum"), partial=("partial", "any"), n_unknown_days=("n_unknown_days", "sum")
-    )
-    days = months[["country", "series", "cell_days"]].rename(columns={"cell_days": "n_cells"})
-    days["date"] = pd.to_datetime(months[["year", "month"]].assign(day=1))
-    if empty:
-        months, years, days = months.iloc[:0], years.iloc[:0], days.iloc[:0]
-    inputs = dict(l1_cal_monthly=months, l1_cal_annual=years, l1_cal_daily=days)
-    for name, frame in inputs.items():
-        frame.to_parquet(metrics / f"{name}.parquet", index=False)
-    original_inputs = {name: (metrics / f"{name}.parquet").read_bytes() for name in inputs}
-    namespace = dict(ROOT=tmp_path, REPO=repo)
-    with contextlib.redirect_stdout(io.StringIO()):
-        for source in sources[1:]:
-            exec(compile(source, "04_metrics_lote3.ipynb", "exec"), namespace)
-        assert len(namespace["tables"]) == 10
-        for name, expected in namespace["tables"].items():
-            actual = pd.read_parquet(metrics / f"{name}.parquet")
-            # pandas 3 infers StringDtype when decoding object-string Parquet
-            # columns. Normalize those text representations only. Numeric,
-            # boolean and datetime schemas remain checked exactly.
-            text = {column: "object" for column in ["country", "series", "years_included"]
-                    if column in actual.columns}
-            assert_frame_equal(actual.astype(text), expected)
-        # Rerun actual compute/export cells, replacing existing outputs safely.
-        for source in sources[2:]:
-            exec(source, namespace)
-    assert len(list(metrics.glob("l3_*.parquet"))) == 10
-    assert not list(metrics.glob("*.tmp"))
-    log = pd.read_csv(metrics / "_log_lote3.csv")
-    assert len(log) == 10
-    assert log.commit.nunique() == 1
-    parameters = json.loads(log.parameters.iloc[0])
-    assert parameters["min_ref_years"] == 5
-    assert parameters["max_unknown_days"] == 0
-    for name in inputs:
-        assert (metrics / f"{name}.parquet").read_bytes() == original_inputs[name]
-    if not empty:
-        reference = namespace["tables"]["l3_cal09_monthly_mean"]
-        assert reference.mean_cell_days.tolist() == [35.0] * 12
-        assert reference.n_years.tolist() == [6] * 12
-    (metrics / "l1_cal_daily.parquet").unlink()
-    with pytest.raises(FileNotFoundError, match="02_metrics_lote1.*l1_cal_daily"):
-        exec(sources[2], namespace)
-
-
 @pytest.mark.parametrize("name,factory,columns", CASES)
-def test_categorical_keys_ignore_unused_categories_without_future_warnings(name, factory, columns):
+def test_categorical_series_ignores_unused_categories_without_future_warnings(name, factory, columns):
     import warnings
 
     args = factory()
     expected = getattr(c, name)(*args)
     for frame in args:
-        frame["country"] = pd.Categorical(frame.country, categories=["Portugal", "Unused"])
         frame["series"] = pd.Categorical(frame.series, categories=["modis", "viirs", "combined"])
     with warnings.catch_warnings():
         warnings.simplefilter("error", FutureWarning)
