@@ -23,6 +23,7 @@ import { openReport } from '../lib/export'
 import { downloadBlob, downloadCsv, hotspotsFilename, referenceMeans } from '../lib/stats'
 import { fetchFeature, fetchHotspotsCsv, MAX_HOTSPOTS, usingMock } from '../api/client'
 import type { View } from '../types'
+import { useShallow } from 'zustand/react/shallow'
 
 interface Item {
   id: string
@@ -56,7 +57,10 @@ function Tile({ item, disabled }: { item: Item; disabled: boolean }) {
 
 export default function AnalysesMenu() {
   const t = useT()
-  const { place, status, view, hotspots, hotspotsLoading, calendar, radiusKm, dateFrom, dateTo, replayTime, lang, calendarScale } = useApp()
+  // Only whether a replay is running matters here, not its clock (which changes every frame)
+  const { place, status, view, hotspots, hotspotsLoading, calendar, radiusKm, dateFrom, dateTo, replaying, lang, calendarScale } = useApp(
+    useShallow((s) => ({ place: s.place, status: s.status, view: s.view, hotspots: s.hotspots, hotspotsLoading: s.hotspotsLoading, calendar: s.calendar, radiusKm: s.radiusKm, dateFrom: s.dateFrom, dateTo: s.dateTo, replaying: s.replayTime !== null, lang: s.lang, calendarScale: s.calendarScale })),
+  )
   const { openView, analyze, loadHotspots } = useApp.getState()
 
   // Opening a chart before analyzing runs the analysis first.
@@ -128,10 +132,10 @@ export default function AnalysesMenu() {
       icon: Fire,
       tint: 'bg-ember-500/15 text-ember-500',
       run: () => (hotspots ? useApp.getState().clearHotspots() : loadHotspots()),
-      active: !!hotspots && replayTime === null,
+      active: !!hotspots && !replaying,
       busy: hotspotsLoading,
     },
-    { id: 'replay', label: t('menu.replay'), icon: PlayCircle, tint: 'bg-ember-500/15 text-ember-300', run: startReplay, active: replayTime !== null },
+    { id: 'replay', label: t('menu.replay'), icon: PlayCircle, tint: 'bg-ember-500/15 text-ember-300', run: startReplay, active: replaying },
     { id: 'metrics', label: t('menu.metrics'), icon: Gauge, tint: 'bg-[#4fd1a5]/15 text-[#7ee0bf]', run: show('metrics'), active: view === 'metrics' },
   ]
   const exports: Item[] = [

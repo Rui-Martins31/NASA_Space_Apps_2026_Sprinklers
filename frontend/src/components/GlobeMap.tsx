@@ -75,25 +75,40 @@ export default function GlobeMap() {
     map.on('touchstart', stop)
     map.on('wheel', stop)
 
-    // One animation loop for the spin and the fire flicker (~30 fps for the fires)
+    // One animation loop for the spin and the fire flicker (~30 fps for the fires).
+    // It only runs while there is something to animate, so an idle map costs nothing.
     let frame = 0
     let lastFire = 0
+    let lastTick = 0
+    const SPIN_DEG_PER_S = 2.4 // the same speed on 60, 120 or 144 Hz screens
     const tick = (now: number) => {
+      frame = 0
       const s = useApp.getState()
-      if (spinning && !s.place && map.getZoom() < 3) {
+      const dt = lastTick ? Math.min(now - lastTick, 100) : 16
+      lastTick = now
+      const spin = spinning && !s.place && map.getZoom() < 3
+      // Never fight a camera move in progress (user drag, flyTo, easeTo)
+      if (spin && !map.isMoving()) {
         const c = map.getCenter()
-        map.setCenter([c.lng + 0.04, c.lat])
+        map.jumpTo({ center: [c.lng + (SPIN_DEG_PER_S * dt) / 1000, c.lat] })
       }
-      flameState.active = !!s.hotspots?.length && map.getZoom() >= FLAME_MINZOOM - 0.5
-      if (readyRef.current && s.hotspots?.length && now - lastFire > 33) {
+      const fires = readyRef.current && !!s.hotspots?.length
+      flameState.active = fires && map.getZoom() >= FLAME_MINZOOM - 0.5
+      if (fires && now - lastFire > 33) {
         lastFire = now
         updateFireAnimation(map, now / 1000, s.replayTime, replayFadeMs(s.hotspotWindow?.from ?? s.dateFrom, s.hotspotWindow?.to ?? s.dateTo))
       }
-      frame = requestAnimationFrame(tick)
+      if (spin || fires) frame = requestAnimationFrame(tick)
+      else lastTick = 0
     }
-    frame = requestAnimationFrame(tick)
+    const wake = () => {
+      if (!frame) frame = requestAnimationFrame(tick)
+    }
+    wake()
+    const unsubscribe = useApp.subscribe(wake) // a place, hotspots or replay change may need the loop again
 
     return () => {
+      unsubscribe()
       cancelAnimationFrame(frame)
       map.remove()
       mapRef.current = null
@@ -154,7 +169,7 @@ export default function GlobeMap() {
       el.innerHTML =
         '<span class="absolute inset-0 rounded-full bg-[#ff6b1a]/40 animate-ping"></span>' +
         '<span class="absolute inset-[3px] rounded-full bg-[#ff6b1a] ring-2 ring-[#07090d]"></span>'
-      markerRef.current = new maplibregl.Marker({ element: el }).setLngLat([place.lon, place.lat]).addTo(map)
+      markerRef.current = new maplibregl.Marker({ element: el, subpixelPositioning: true }).setLngLat([place.lon, place.lat]).addTo(map)
       map.flyTo({
         center: [place.lon, place.lat],
         zoom: zoomForRadius(useApp.getState().radiusKm),

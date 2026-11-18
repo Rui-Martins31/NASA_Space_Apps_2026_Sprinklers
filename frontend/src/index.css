@@ -42,10 +42,11 @@ body {
   }
 }
 
-/* Dark glass panel used for every floating surface */
+/* Dark panel used for every floating surface.
+   No backdrop-filter: blurring a WebGL map that redraws every frame is very costly
+   and makes the map shake/flicker in Edge on Windows. A near-opaque background keeps map labels from showing through. */
 .glass {
-  background: rgb(13 17 23 / 0.82);
-  backdrop-filter: blur(14px) saturate(140%);
+  background: rgb(13 17 23 / 0.97);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.06),
     0 0 0 1px rgb(255 255 255 / 0.06),

@@ -10,6 +10,9 @@ import {
   categoryLabel,
   metricDescription,
   metricName,
+  metricNote,
+  metricUnit,
+  metricCalculation,
   priorityLabel,
   type MetricDef,
 } from '../../lib/metricsCatalog'
@@ -120,8 +123,9 @@ function shapeOf(v: unknown): Shape {
 
 function Value({ m, r, lang }: { m: MetricDef; r: Extract<MetricResult, { status: 'ok' }>; lang: Lang }) {
   const t = useT()
-  const { value, unit, note } = r.data
-  const unitLabel = unit ?? m.unit
+  const { value, unit } = r.data
+  const note = r.data.note ? metricNote(r.data.note, lang) : undefined
+  const unitLabel = unit ?? metricUnit(m, lang)
   const big = 'font-mono text-lg text-fg'
   const small = 'text-xs text-fg-muted'
 
@@ -249,9 +253,9 @@ function MetricRow({ m }: { m: MetricDef }) {
       {open && (
         <div className="mt-2 space-y-1 rounded-[8px] bg-ink-900 p-2.5 text-xs leading-relaxed text-fg-muted">
           <p>{metricDescription(m, lang)}</p>
-          {m.calculation && (
+          {metricCalculation(m, lang) && (
             <p>
-              <span className="text-fg">{t('metrics.how')}:</span> {m.calculation}
+              <span className="text-fg">{t('metrics.how')}:</span> {metricCalculation(m, lang)}
             </p>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { lazy, Suspense, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { X, CircleNotch, DownloadSimple } from '@phosphor-icons/react'
 import { toast } from 'sonner'
@@ -6,12 +6,19 @@ import { DATA_START, useApp } from '../store'
 import { useT, type TKey } from '../i18n'
 import CalendarHeatmap from './views/CalendarHeatmap'
 import EmptyState, { totalHotspots } from './EmptyState'
-import { AboutView, RankingView, SeasonalChart, TrendView } from './views/Charts'
 import MetricsView from './views/MetricsView'
-import { METRICS, metricName } from '../lib/metricsCatalog'
+import { METRICS, metricName, metricNote, metricUnit } from '../lib/metricsCatalog'
 import { downloadCsv, referenceMeans, slug } from '../lib/stats'
 import { calendarSvg, chartFromDom, downloadPng, downloadSvg, exportFilename, frameSvg, type ExportMeta } from '../lib/export'
 import type { View } from '../types'
+import { useShallow } from 'zustand/react/shallow'
+
+// The charts use recharts (the biggest library after the map), so they load only when first opened.
+const loadCharts = () => import('./views/Charts')
+const TrendView = lazy(() => loadCharts().then((m) => ({ default: m.TrendView })))
+const SeasonalChart = lazy(() => loadCharts().then((m) => ({ default: m.SeasonalChart })))
+const RankingView = lazy(() => loadCharts().then((m) => ({ default: m.RankingView })))
+const AboutView = lazy(() => loadCharts().then((m) => ({ default: m.AboutView })))
 
 const TITLE: Record<View, TKey> = {
   calendar: 'view.calendar',
@@ -26,7 +33,7 @@ const EXPORTABLE: View[] = ['calendar', 'trend', 'seasonal']
 // Right-hand results panel. Not a modal: the globe and menus stay usable while it is open.
 export default function ResultsDrawer() {
   const t = useT()
-  const { view, status, calendar, place, radiusKm, dateFrom, dateTo, lang, calendarScale } = useApp()
+  const { view, status, calendar, place, radiusKm, dateFrom, dateTo, lang, calendarScale } = useApp(useShallow((s) => ({ view: s.view, status: s.status, calendar: s.calendar, place: s.place, radiusKm: s.radiusKm, dateFrom: s.dateFrom, dateTo: s.dateTo, lang: s.lang, calendarScale: s.calendarScale })))
   const { openView } = useApp.getState()
   const bodyRef = useRef<HTMLDivElement>(null)
 
@@ -38,6 +45,11 @@ export default function ResultsDrawer() {
   }, [openView])
 
   const hasData = status === 'ready' && !!calendar && totalHotspots(calendar) > 0
+
+  // Fetch the charts code in the background once there is something to chart
+  useEffect(() => {
+    if (status === 'ready') void loadCharts()
+  }, [status])
 
   // W10: the chart on screen as PNG or SVG, with area, period, date and source
   async function exportView(format: 'png' | 'svg') {
@@ -68,8 +80,8 @@ export default function ResultsDrawer() {
         id: m.id,
         metric: metricName(m, lang),
         value: ok ? (typeof ok.value === 'object' ? JSON.stringify(ok.value) : String(ok.value ?? '')) : '',
-        unit: ok?.unit ?? m.unit,
-        note: ok?.note ?? (r?.status === 'missing' ? t('metrics.missing') : ''),
+        unit: ok?.unit ?? metricUnit(m, lang),
+        note: ok?.note ? metricNote(ok.note, lang) : (r?.status === 'missing' ? t('metrics.missing') : ''),
         area: `${place.label} (${radiusKm} km)`,
         period: `${dateFrom} / ${dateTo}`,
       }
@@ -77,15 +89,16 @@ export default function ResultsDrawer() {
     downloadCsv(`metrics_${slug(place.label)}_${dateFrom}_${dateTo}.csv`, rows)
   }
 
+  const spinner = (
+    <div className="flex h-60 items-center justify-center gap-2 text-sm text-fg-muted">
+      <CircleNotch size={18} className="animate-spin" /> {t('view.loading')}
+    </div>
+  )
+
   const body = () => {
     if (view === 'about') return <AboutView />
     if (view === 'metrics') return <MetricsView />
-    if (status === 'loading' || !calendar)
-      return (
-        <div className="flex h-60 items-center justify-center gap-2 text-sm text-fg-muted">
-          <CircleNotch size={18} className="animate-spin" /> {t('view.loading')}
-        </div>
-      )
+    if (status === 'loading' || !calendar) return spinner
     if (totalHotspots(calendar) === 0) return <EmptyState />
     switch (view) {
       case 'calendar':
@@ -151,7 +164,7 @@ export default function ResultsDrawer() {
           </div>
           <div className="h-px bg-line" />
           <div ref={bodyRef} className="flex-1 overflow-y-auto px-6 py-5">
-            {body()}
+            <Suspense fallback={spinner}>{body()}</Suspense>
           </div>
         </motion.aside>
       )}

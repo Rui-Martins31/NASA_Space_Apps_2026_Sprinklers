@@ -8,6 +8,7 @@ import DatePicker from './DatePicker'
 import EmptyState, { totalHotspots } from './EmptyState'
 import { currentVsMean, fmt, referenceMeans, summary } from '../lib/stats'
 import { monthName, useT, type TKey } from '../i18n'
+import { useShallow } from 'zustand/react/shallow'
 
 const RADII = [5, 25, 50, 100, 150, 300]
 
@@ -85,7 +86,7 @@ function Card({ label, children, sub }: { label: ReactNode; children: ReactNode;
 
 export default function AreaPanel() {
   const t = useT()
-  const { place, radiusKm, dateFrom, dateTo, status, calendar, anomalies, lang, hotspotTotal, hotspotTotalStatus } = useApp()
+  const { place, radiusKm, dateFrom, dateTo, status, calendar, anomalies, lang, hotspotTotal, hotspotTotalStatus } = useApp(useShallow((s) => ({ place: s.place, radiusKm: s.radiusKm, dateFrom: s.dateFrom, dateTo: s.dateTo, status: s.status, calendar: s.calendar, anomalies: s.anomalies, lang: s.lang, hotspotTotal: s.hotspotTotal, hotspotTotalStatus: s.hotspotTotalStatus })))
   const { setRadius, setDates, analyze } = useApp.getState()
   if (!place) return null
 

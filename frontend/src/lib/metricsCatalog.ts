@@ -5,6 +5,7 @@
 //   - how each value is shaped, so we know how to draw it (KIND below)
 import csvText from '../../../spec/metricas_modis_viirs.csv?raw'
 import type { Lang } from '../i18n'
+import { METRICS_EN } from './metricsEn'
 
 export interface MetricDef {
   id: string // "CAL-05"
@@ -99,8 +100,39 @@ const PRIORITY_EN: Record<string, string> = {
 
 export const categoryLabel = (c: string, lang: Lang) => (lang === 'en' ? (CATEGORY_EN[c] ?? c) : c)
 export const priorityLabel = (p: string, lang: Lang) => (lang === 'en' ? (PRIORITY_EN[p] ?? p) : p)
-export const metricName = (m: MetricDef, lang: Lang) => (lang === 'en' && m.nameEn ? m.nameEn : m.name)
-export const metricDescription = (m: MetricDef, lang: Lang) => (lang === 'en' && m.descriptionEn ? m.descriptionEn : m.description)
+// English text: an `_en` column in the CSV wins, then src/lib/metricsEn.ts, then the Portuguese text.
+const en = (m: MetricDef) => METRICS_EN[m.id]
+export const metricName = (m: MetricDef, lang: Lang) => (lang === 'en' ? (m.nameEn ?? en(m)?.name ?? m.name) : m.name)
+export const metricDescription = (m: MetricDef, lang: Lang) =>
+  lang === 'en' ? (m.descriptionEn ?? en(m)?.description ?? m.description) : m.description
+export const metricUnit = (m: MetricDef, lang: Lang) => (lang === 'en' ? (en(m)?.unit ?? m.unit) : m.unit)
+export const metricCalculation = (m: MetricDef, lang: Lang) => (lang === 'en' ? (en(m)?.calculation ?? m.calculation) : m.calculation)
+
+// The backend writes its notes in English; these patterns translate them for the Portuguese UI.
+// An unknown note is shown as it came.
+const NOTE_PT: [RegExp, string][] = [
+  [/^no data for this area and period$/, 'sem dados para esta área e período'],
+  [/^no activity in the period$/, 'sem atividade no período'],
+  [/^MODIS vs VIIRS over their common period \((\d{4}) onwards\), not the selected dates$/, 'MODIS vs VIIRS no período em comum (desde $1), não nas datas escolhidas'],
+  [/^over the whole record, not the selected dates$/, 'sobre todo o registo, não nas datas escolhidas'],
+  [/^the circle is smaller than one grid chunk$/, 'o círculo é mais pequeno do que uma célula da grelha'],
+  [/^no complete year in the period$/, 'nenhum ano completo no período'],
+  [/^complete years: (\d+) \((.+)\)$/, 'anos completos: $1 ($2)'],
+  [/^average over (\d+) grid chunk\(s\)$/, 'média de $1 célula(s) da grelha'],
+  [/^([\d.]+)% of the (\d+) days of the months in the period$/, '$1% dos $2 dias dos meses do período'],
+  [/^at (.+), (.+)$/, 'em $1, $2'],
+]
+/** Translates a backend note (notes may be joined with "; "). */
+export function metricNote(note: string, lang: Lang): string {
+  if (lang !== 'pt') return note
+  return note
+    .split('; ')
+    .map((part) => {
+      for (const [re, pt] of NOTE_PT) if (re.test(part)) return part.replace(re, pt)
+      return part
+    })
+    .join('; ')
+}
 
 // ---------------------------------------------------------------------------
 // The shape of `value` is recognised from the value itself (see MetricsView),
