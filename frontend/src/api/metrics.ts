@@ -1,7 +1,7 @@
 // One request per metric: POST /api/<code> (e.g. /api/cal_05) with the usual body.
 // The backend answers { feature, value, unit?, note? }.
 // A 404 means the backend does not offer that metric yet.
-import { usingMock } from './client'
+import { apiUrl, usingMock } from './client'
 import { metricKind } from '../lib/metricsCatalog'
 import type { AreaQuery } from '../types'
 
@@ -17,7 +17,7 @@ export class MetricMissing extends Error {}
 export async function fetchMetric(code: string, q: AreaQuery): Promise<MetricResponse> {
   if (usingMock) return mockMetric(code, q)
 
-  const res = await fetch(`/api/${code}`, {
+  const res = await fetch(apiUrl(`/api/${code}`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

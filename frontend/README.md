@@ -20,6 +20,20 @@ The browser calls `/api/...` on the Vite server, which forwards it to the backen
 
 Create `.env` with `VITE_USE_MOCK=true` (see `.env.example`) and restart `npm run dev`. The app then uses fake data generated in the browser, in the same format as the backend.
 
+## Deploy (Firebase Hosting)
+
+The frontend (Firebase project `firecal-frontend`) and the backend (Cloud Run,
+GCP project `nasa-514815`, see [../backend/deploy/README.md](../backend/deploy/README.md))
+are deployed separately. In production there is no Vite proxy: the browser
+calls the backend's Cloud Run URL directly. `npm run build` reads that URL from
+[`.env.production`](.env.production) (`VITE_API_URL`); change it there if the
+backend moves. Locally `VITE_API_URL` is empty and `/api` goes through Vite as before.
+
+```bash
+npm run build
+firebase deploy --only hosting
+```
+
 ## Where things are
 
 ```
